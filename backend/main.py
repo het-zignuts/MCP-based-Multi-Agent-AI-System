@@ -4,7 +4,7 @@ from app.core.logging import setup_logging
 from app.api.ws import router as ws_router
 from fastapi.middleware.cors import CORSMiddleware
 
-setup_logging()
+logger=setup_logging()
 
 app=FastAPI(title="AI System", version="1.0.0")
 

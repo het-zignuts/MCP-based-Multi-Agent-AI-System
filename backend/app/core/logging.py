@@ -1,5 +1,5 @@
 from loguru import logger
-import System
+import sys
 
 def setup_logging():
     logger.remove()

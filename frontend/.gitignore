@@ -62,4 +62,4 @@ node_modules/.vite
 *.log
 *.tmp
 
-.env
+.env        

@@ -2,9 +2,22 @@ from loguru import logger
 import sys
 
 def setup_logging():
+
     logger.remove()
+
     logger.add(
         sys.stdout,
-        format="{time} | {level} | {message}",
-        level="INFO"
+        level="INFO",
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}"
     )
+
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+
+    logger.add(
+        log_dir / "app.log",
+        rotation="10 MB",
+        retention="10 days"
+    )
+
+    return logger

@@ -27,5 +27,4 @@ class ConnectionManager:
             for connection in self.active_connections[user_id]:
                 await connection.send_text(message)
 
-
 manager = ConnectionManager()

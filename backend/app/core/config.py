@@ -3,7 +3,8 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     APP_NAME:str="AI System"
-    DATABASE_URL: str
+    DATABASE_URL_ASYNC: str
+    DATABASE_URL_SYNC: str
     ENV:str="dev"
 
     class Config:

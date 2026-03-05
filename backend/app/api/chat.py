@@ -7,7 +7,6 @@ from datetime import datetime
 
 router = APIRouter()
 
-
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, session: Session = Depends(get_session)):
     user=get_user(request.user_id, session)

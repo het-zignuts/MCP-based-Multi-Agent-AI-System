@@ -1,0 +1,93 @@
+from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
+from sqlmodel.ext.asyncio.session import AsyncSession
+from fastapi import HTTPException, UploadFile
+from uuid import UUID
+from datetime import datetime
+import os
+import uuid
+
+from app.models.file import File
+from app.models.user import User
+from app.models.conversation import Conversation
+from app.models.message import Message
+
+from app.schemas.file import FileRead
+
+async def create_file(db: AsyncSession, payload) -> File:
+    user = (await db.execute(select(User).where(User.id == payload.user_id))).scalar_one_or_none()
+    if not user:
+        raise HTTPException(404, "User not found")
+    conversation = (await db.execute(select(Conversation).where(Conversation.id == payload.conversation_id))).scalar_one_or_none()
+    if not conversation:
+        raise HTTPException(404, "Conversation not found")
+    if payload.message_id:
+        message = (await db.execute(select(Message).where(Message.id == payload.message_id))).scalar_one_or_none()
+        if not message:
+            raise HTTPException(404, "Message not found")
+
+    file = File(
+        conversation_id=payload.conversation_id,
+        user_id=payload.user_id,
+        message_id=payload.message_id,  # can be None
+        filename=payload.filename,
+        file_type=payload.file_type,
+        file_size=payload.file_size,
+        storage_path=payload.storage_path,
+        status="uploaded"
+    )
+    db.add(file)
+    await db.commit()
+    await db.refresh(file)
+    return file
+
+async def get_file(db: AsyncSession, file_id: UUID) -> File:
+    result = await db.execute(select(File).where(File.id == file_id).options(selectinload(File.user), selectinload(File.conversation), selectinload(File.message)))
+    file = result.scalar_one_or_none()
+    if not file:
+        raise HTTPException(404, "File not found")
+    return file
+
+async def get_files(db: AsyncSession, conversation_id: UUID | None = None, message_id: UUID | None = None) -> list[File]:
+    query = select(File).options(selectinload(File.user), selectinload(File.conversation), selectinload(File.message))
+    if conversation_id:
+        query = query.where(File.conversation_id == conversation_id)
+    if message_id:
+        query = query.where(File.message_id == message_id)
+    result = await db.execute(query)
+    return result.scalars().all()
+
+async def update_file(db: AsyncSession, file_id: UUID, message_id: UUID | None = None, status: str | None = None) -> File:
+    file = await get_file(db, file_id)
+    if message_id is not None:
+        if message_id:
+            message = (await db.execute(select(Message).where(Message.id == message_id))).scalar_one_or_none()
+            if not message:
+                raise HTTPException(404, "Message not found")
+        file.message_id = message_id  # can be None (detach)
+    if status:
+        file.status = status
+    await db.commit()
+    await db.refresh(file)
+    return file
+
+async def delete_file(db: AsyncSession, file_id: UUID) -> None:
+    file = await get_file(db, file_id)
+    await db.delete(file)
+    await db.commit()
+
+async def save_file_to_storage(file: UploadFile, base_path: str = "uploads/") -> str:
+    os.makedirs(base_path, exist_ok=True)
+
+    # unique filename
+    ext = file.filename.split(".")[-1]
+    unique_name = f"{uuid.uuid4()}.{ext}"
+
+    file_path = os.path.join(base_path, unique_name)
+
+    # save file
+    with open(file_path, "wb") as f:
+        content = await file.read()
+        f.write(content)
+
+    return file_path

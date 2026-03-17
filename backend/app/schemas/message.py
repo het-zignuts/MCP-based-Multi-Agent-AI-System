@@ -13,6 +13,7 @@ class MessageCreate(BaseModel):
     user_id: UUID
     content: str
     token_count: Optional[int] = None
+    file_ids: Optional[List[UUID]] = []
 
 class MessageRead(BaseModel):
     id: UUID

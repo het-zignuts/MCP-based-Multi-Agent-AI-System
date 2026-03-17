@@ -6,6 +6,7 @@ from datetime import datetime
 
 from app.schemas.user import UserRead
 from app.schemas.file import FileRead
+from app.schemas.message import MessageRead
 
 class ConversationCreate(BaseModel):
     title: str
@@ -19,6 +20,7 @@ class ConversationRead(BaseModel):
     updated_at: datetime
     convo_metadata: Optional[dict] = None
     user_id: UUID
+    messages: List[MessageRead] = []
     files: List[FileRead] = []
 
     class Config:

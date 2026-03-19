@@ -7,14 +7,14 @@ from app.schemas.message import MessageCreate, MessageRead
 from app.crud.message import *
 from app.db.database import get_db
 
-router = APIRouter()
+router = APIRouter(prefix="/messages", tags=["Messages"])
 
 @router.post("/", response_model=MessageRead)
 async def create(payload: MessageCreate, db: AsyncSession = Depends(get_db)):
     try:
         message = await create_message(db, payload)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise e
     return message
 
 @router.get("/{message_id}", response_model=MessageRead)

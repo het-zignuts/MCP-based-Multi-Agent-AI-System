@@ -7,10 +7,10 @@ from datetime import datetime
 import os
 import uuid
 
-from app.models.file import File
-from app.models.user import User
-from app.models.conversation import Conversation
-from app.models.message import Message
+from app.db.models.file import File
+from app.db.models.user import User
+from app.db.models.conversation import Conversation
+from app.db.models.message import Message
 
 from app.schemas.file import FileRead
 
@@ -38,7 +38,18 @@ async def create_file(db: AsyncSession, payload) -> File:
     )
     db.add(file)
     await db.commit()
-    await db.refresh(file)
+
+    result = await db.execute(
+        select(File)
+        .where(File.id == file.id)
+        .options(
+            selectinload(File.user),
+            selectinload(File.conversation),
+            selectinload(File.message),
+        )
+    )
+
+    file = result.scalar_one()
     return file
 
 async def get_file(db: AsyncSession, file_id: UUID) -> File:
@@ -68,7 +79,18 @@ async def update_file(db: AsyncSession, file_id: UUID, message_id: UUID | None =
     if status:
         file.status = status
     await db.commit()
-    await db.refresh(file)
+
+    result = await db.execute(
+        select(File)
+        .where(File.id == file.id)
+        .options(
+            selectinload(File.user),
+            selectinload(File.conversation),
+            selectinload(File.message),
+        )
+    )
+
+    file = result.scalar_one()
     return file
 
 async def delete_file(db: AsyncSession, file_id: UUID) -> None:

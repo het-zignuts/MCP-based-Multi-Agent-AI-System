@@ -6,12 +6,12 @@ from app.schemas.conversation import ConversationCreate, ConversationRead
 from app.crud.conversation import *
 from app.db.database import get_db
 
-router = APIRouter()
+router = APIRouter(prefix="/conversations", tags=["Conversations"])
 
 @router.post("/", response_model=ConversationRead)
 async def create(payload: ConversationCreate, db: AsyncSession = Depends(get_db)):
     try:
-        conversation = create_conversation(db, payload)
+        conversation = await create_conversation(db, payload)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     return conversation
@@ -33,10 +33,10 @@ async def read_all(user_id:UUID, db: AsyncSession = Depends(get_db)):
     return conversations
 
 @router.put("/{conversation_id}")
-async def update(conversation_id: UUID, db: AsyncSession = Depends(get_db)):
+async def update(conversation_id: UUID, title: str, convo_metadata: dict, db: AsyncSession = Depends(get_db)):
     try:
         conversation = await get_conversation(db, conversation_id)
-        updated_conversation = await update_conversation(db, conversation_id, title=conversation.title, convo_metadata=conversation.convo_metadata)
+        updated_conversation = await update_conversation(db, conversation_id, title=title, convo_metadata=convo_metadata)
         return updated_conversation
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))

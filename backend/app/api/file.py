@@ -7,7 +7,7 @@ from app.schemas.file import FileCreate, FileRead
 from app.crud.file import *
 from app.db.database import get_db
 
-router = APIRouter()
+router = APIRouter(prefix="/files", tags=["Files"])
 
 @router.post("/upload", response_model=FileRead)
 async def upload_file(conversation_id: UUID, user_id: UUID, file: UploadFile = UploadFileType(...), db: AsyncSession = Depends(get_db)):

@@ -4,17 +4,22 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi import HTTPException
 from uuid import UUID
 
-from app.models import User
+from app.db.models import User
 
 async def create_user(db: AsyncSession, payload) -> User:
     result = await db.execute(select(User).where(User.email == payload.email))
     existing_user = result.scalar_one_or_none()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
-    user = User(email=payload.email, password=payload.password) # hash it later
+    user = User(email=payload.email, password=payload.password)
     db.add(user)
     await db.commit()
-    await db.refresh(user)
+    result = await db.execute(
+        select(User)
+        .where(User.id == user.id)
+        .options(selectinload(User.conversations))
+    )
+    user = result.scalar_one()
     return user
 
 async def get_user(db: AsyncSession, user_id: UUID) -> User:
@@ -52,8 +57,14 @@ async def update_user(db: AsyncSession, user_id: UUID, email: str | None = None,
 
     await db.commit()
     await db.refresh(user)
-    return user
+    result = await db.execute(
+        select(User)
+        .where(User.id == user.id)
+        .options(selectinload(User.conversations))
+    )
+    user = result.scalar_one()
 
+    return user
 async def delete_user(db: AsyncSession, user_id: UUID) -> None:
     user = await get_user(db, user_id)
     await db.delete(user)

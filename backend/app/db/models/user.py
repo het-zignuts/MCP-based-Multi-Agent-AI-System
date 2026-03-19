@@ -6,7 +6,8 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from uuid import uuid4, UUID
 
 if TYPE_CHECKING:
-    from app.models.conversation import Conversation  
+    from app.db.models.conversation import Conversation  
+    from app.db.models.file import File
 
 class User(SQLModel, table=True):
     __tablename__ = "user"
@@ -19,6 +20,11 @@ class User(SQLModel, table=True):
 
     # Relationship
     conversations: List["Conversation"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+
+    files: List["File"] = Relationship(
         back_populates="user",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"}
     )

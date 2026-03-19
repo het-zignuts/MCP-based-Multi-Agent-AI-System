@@ -5,7 +5,7 @@ from fastapi import HTTPException
 from uuid import UUID
 from datetime import datetime
 
-from app.models import Conversation, User
+from app.db.models import Conversation, User, Message
 from app.schemas.conversation import ConversationRead
 
 async def create_conversation(db: AsyncSession, payload: ConversationRead) -> Conversation:
@@ -13,17 +13,34 @@ async def create_conversation(db: AsyncSession, payload: ConversationRead) -> Co
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    conversation = Conversation(title=payload.title, user_id=payload.user_id, convo_metadata=payload.convo_metadata)
+
+    conversation = Conversation(
+        title=payload.title,
+        user_id=payload.user_id,
+        convo_metadata=payload.convo_metadata
+    )
+
     db.add(conversation)
     await db.commit()
-    await db.refresh(conversation)
+
+    result = await db.execute(
+        select(Conversation)
+        .where(Conversation.id == conversation.id)
+        .options(
+            selectinload(Conversation.messages),
+            selectinload(Conversation.files),
+            selectinload(Conversation.user)
+        )
+    )
+    conversation = result.scalar_one()
+
     return conversation
 
 async def get_conversation(db: AsyncSession, conversation_id: UUID) -> Conversation:
     result = await db.execute(select(Conversation).where(Conversation.id == conversation_id).options(
             selectinload(Conversation.files),
             selectinload(Conversation.user),
-            selectinload(Conversation.messages)
+            selectinload(Conversation.messages).selectinload(Message.files)
         )
     )
     conversation = result.scalar_one_or_none()
@@ -32,7 +49,11 @@ async def get_conversation(db: AsyncSession, conversation_id: UUID) -> Conversat
     return conversation
 
 async def get_conversations(db: AsyncSession, user_id: UUID | None = None) -> list[Conversation]:
-    query = select(Conversation).options(selectinload(Conversation.files), selectinload(Conversation.user))
+    query = select(Conversation).options(
+        selectinload(Conversation.files),
+        selectinload(Conversation.user),
+        selectinload(Conversation.messages).selectinload(Message.files)  
+    )
 
     if user_id:
         query = query.where(Conversation.user_id == user_id)
@@ -50,7 +71,18 @@ async def update_conversation(db: AsyncSession, conversation_id: UUID, title: st
         conversation.convo_metadata = convo_metadata
     conversation.updated_at = datetime.utcnow()
     await db.commit()
-    await db.refresh(conversation)
+
+    result = await db.execute(
+        select(Conversation)
+        .where(Conversation.id == conversation.id)
+        .options(
+            selectinload(Conversation.messages),
+            selectinload(Conversation.files),
+            selectinload(Conversation.user)
+        )
+    )
+    conversation = result.scalar_one()
+
     return conversation
 
 async def delete_conversation(db: AsyncSession, conversation_id: UUID) -> None:

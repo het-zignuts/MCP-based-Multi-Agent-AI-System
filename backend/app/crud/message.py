@@ -1,7 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from fastapi import HTTPException
-from app.models import User, Conversation, Message, File
+from sqlalchemy.orm import selectinload
+from app.db.models import User, Conversation, Message, File
 from uuid import UUID
 
 from app.schemas import MessageCreate
@@ -10,20 +11,23 @@ async def create_message(session: AsyncSession, payload: MessageCreate):
     user=await session.execute(select(User).where(User.id==payload.user_id))
     user=user.scalar_one_or_none()
     if not user:
-        return None
-    conversation=await session.execute(select(Conversation).where(conversation.id==payload.conversation_id))
+        raise HTTPException(404, "User not found")
+    conversation=await session.execute(select(Conversation).where(Conversation.id==payload.conversation_id))
     conversation=conversation.scalar_one_or_none()
     if not conversation:
-        return None
+        raise HTTPException(404, "Conversation not found")
     message=Message(**payload.dict())
     message.user=user
     message.conversation=conversation
-
+    
+    session.add(message)
+    await session.flush()
+    
     if payload.file_ids:
-        if len(files) != len(payload.file_ids):
-            raise HTTPException(status_code=404, detail="Some files not found")
         files=await session.execute(select(File).where(File.id.in_(payload.file_ids)))
         files=files.scalars().all()
+        if len(files) != len(payload.file_ids):
+            raise HTTPException(status_code=404, detail="Some files not found")
         for file in files:
             if file.conversation_id != payload.conversation_id:
                 raise HTTPException(status_code=400, detail="File does not belong to this conversation")
@@ -31,7 +35,17 @@ async def create_message(session: AsyncSession, payload: MessageCreate):
         # remember to make early loading
     session.add(message)
     await session.commit()
-    await session.refresh(message)
+
+    result = await session.execute(
+        select(Message)
+        .where(Message.id == message.id)
+        .options(
+            selectinload(Message.files),
+            selectinload(Message.user),
+            selectinload(Message.conversation),
+        )
+    )
+    message = result.scalar_one()
     return message
 
 async def get_message(db: AsyncSession, message_id: UUID) -> Message:
@@ -74,7 +88,18 @@ async def update_message(db: AsyncSession, message_id: UUID, content: str | None
             file.message_id = message.id
 
     await db.commit()
-    await db.refresh(message)
+
+    result = await db.execute(
+        select(Message)
+        .where(Message.id == message.id)
+        .options(
+            selectinload(Message.files),
+            selectinload(Message.user),
+            selectinload(Message.conversation),
+        )
+    )
+
+    message = result.scalar_one()
     return message
 
 async def delete_message(db: AsyncSession, message_id: UUID) -> None:

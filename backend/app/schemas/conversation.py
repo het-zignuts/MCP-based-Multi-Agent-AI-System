@@ -4,9 +4,10 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
 
-from app.schemas.user import UserRead
-from app.schemas.file import FileRead
-from app.schemas.message import MessageRead
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from app.schemas.file import FileRead
+    from app.schemas.message import MessageRead
 
 class ConversationCreate(BaseModel):
     title: str
@@ -20,10 +21,24 @@ class ConversationRead(BaseModel):
     updated_at: datetime
     convo_metadata: Optional[dict] = None
     user_id: UUID
-    messages: List[MessageRead] = []
-    files: List[FileRead] = []
+    messages: List["MessageRead"] = []
+    files: List["FileRead"] = []
 
     class Config:
         orm_mode = True
 
+class ConversationBasicRead(BaseModel):
+    id: UUID
+    title: str
+    created_at: datetime
+    updated_at: datetime
+    convo_metadata: Optional[dict] = None
+    user_id: UUID
+
+    class Config:
+        orm_mode = True
+
+
+from app.schemas.file import FileRead
+from app.schemas.message import MessageRead
 ConversationRead.update_forward_refs()

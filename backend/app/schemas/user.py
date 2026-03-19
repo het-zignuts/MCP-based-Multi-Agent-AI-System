@@ -4,7 +4,7 @@ from typing import List
 from uuid import UUID
 from datetime import datetime
 
-from app.schemas.conversation import ConversationRead
+from app.schemas.conversation import ConversationBasicRead
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -15,9 +15,7 @@ class UserRead(BaseModel):
     email: EmailStr
     created_at: datetime
     is_active: bool
-    conversations: List[ConversationRead] = []
+    conversations: List["ConversationBasicRead"] = []
 
     class Config:
         orm_mode = True
-
-UserRead.update_forward_refs()

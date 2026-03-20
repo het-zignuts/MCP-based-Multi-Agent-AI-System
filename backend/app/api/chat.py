@@ -1,42 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session
-from app.schemas.chat import ChatRequest, ChatResponse
-from app.services.llm_service import llm_service
-from app.core.database import get_session
-from datetime import datetime
+from fastapi import APIRouter, Depends
+from sqlmodel.ext.asyncio.session import AsyncSession
 
-router = APIRouter()
+from app.schemas.message import MessageCreate
+from app.services.message_service import send_message
+from app.db.database import get_db
 
-@router.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest, session: Session = Depends(get_session)):
-    user=get_user(request.user_id, session)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+router = APIRouter(prefix="/chat", tags=["Chat"])
 
-    if not request.conversation_id:
-        conversation = create_conversation(user_id=request.user_id, session=session)
-    else:
-        conversation = get_conversation(request.conversation_id, session)
-        if not conversation:
-            raise HTTPException(status_code=404, detail="Conversation not found")
 
-    user_message = create_message(
-        conversation_id=conversation.id,
-        role="user",
-        content=request.message,
-        token_count=len(request.message.split())
-    )
-
-    reply = await llm_service.generate(request.message)
-
-    assistant_message = create_message(
-        conversation_id=conversation.id,
-        role="assistant",
-        content=reply,
-        token_count=len(reply.split())
-    )
-
-    return ChatResponse(
-        conversation_id=conversation.id,
-        reply=reply
-    )
+@router.post("/send")
+async def chat(payload: MessageCreate, db: AsyncSession = Depends(get_db)):
+    return await send_message(db, payload)

@@ -17,6 +17,7 @@ class Message(SQLModel, table=True):
     conversation_id: UUID = Field(sa_column=Column(PGUUID(as_uuid=True), ForeignKey("conversation.id"), nullable=False))
     user_id: UUID = Field(sa_column=Column(PGUUID(as_uuid=True), ForeignKey("user.id"), nullable=False))
     content: str = Field(sa_column=Column(String, nullable=False))
+    role: str = Field(sa_column=Column(String, nullable=False))
     token_count: Optional[int] = Field(default=None, sa_column=Column(Integer, nullable=True))
     created_at: datetime = Field(default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False))
     updated_at: datetime = Field(default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False))

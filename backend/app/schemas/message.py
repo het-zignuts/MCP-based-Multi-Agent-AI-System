@@ -12,6 +12,7 @@ class MessageCreate(BaseModel):
     conversation_id: UUID
     user_id: UUID
     content: str
+    role: str
     token_count: Optional[int] = None
     file_ids: Optional[List[UUID]] = []
 
@@ -20,6 +21,7 @@ class MessageRead(BaseModel):
     conversation_id: UUID
     user_id: UUID
     content: str
+    role: str
     token_count: Optional[int] = None
     created_at: datetime
     updated_at: datetime

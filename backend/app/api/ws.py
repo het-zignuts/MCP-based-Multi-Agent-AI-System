@@ -6,6 +6,7 @@ from uuid import UUID
 from app.db.database import get_db
 from app.core.websocket import manager
 from sqlalchemy.ext.asyncio.session import AsyncSession
+from fastapi.encoders import jsonable_encoder
 
 router = APIRouter(
     prefix="/ws",
@@ -32,13 +33,13 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: UUID, db: As
             result = await send_message(db, message_payload)
 
             await manager.send_to_conversation(
-                {
+                jsonable_encoder({
                     "type": "chat",
                     "data": {
                         "user_message": result["user_message"].dict(),
                         "ai_message": result["ai_message"].dict()
                     }
-                },
+                }),
                 conversation_id
             )
 

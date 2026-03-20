@@ -1,2 +1,3 @@
 def get_llm_response(prompt):
-    return f"AI echoed: {prompt}"
+    last_user_message = prompt[-1]["content"]
+    return f"You said: {last_user_message}"

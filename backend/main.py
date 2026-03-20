@@ -7,6 +7,7 @@ from app.api.user import router as user_router
 from app.api.message import router as message_router
 from app.api.file import router as file_router
 from app.api.chat import router as chat_router
+from app.api.ws import router as ws_router
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -21,7 +22,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# app.include_router(ws_router)
+app.include_router(ws_router)
 app.include_router(conversation_router)
 app.include_router(user_router)
 app.include_router(message_router)

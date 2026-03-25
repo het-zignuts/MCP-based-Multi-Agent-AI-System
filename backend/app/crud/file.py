@@ -1,6 +1,7 @@
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from sqlmodel.ext.asyncio.session import AsyncSession
+import anyio
 from fastapi import HTTPException, UploadFile
 from uuid import UUID
 from datetime import datetime
@@ -11,8 +12,13 @@ from app.db.models.file import File
 from app.db.models.user import User
 from app.db.models.conversation import Conversation
 from app.db.models.message import Message
-
 from app.schemas.file import FileRead
+from app.services.file_type_config import ALLOWED_FILE_EXTENSIONS
+
+
+def _write_file_content(file_path: str, content: bytes) -> None:
+    with open(file_path, "wb") as f:
+        f.write(content)
 
 async def create_file(db: AsyncSession, payload) -> File:
     user = (await db.execute(select(User).where(User.id == payload.user_id))).scalar_one_or_none()
@@ -59,7 +65,7 @@ async def get_file(db: AsyncSession, file_id: UUID) -> File:
         raise HTTPException(404, "File not found")
     return file
 
-async def get_files(db: AsyncSession, conversation_id: UUID | None = None, message_id: UUID | None = None) -> list[File]:
+async def get_files(db: AsyncSession, conversation_id: UUID, message_id: UUID | None = None) -> list[File]:
     query = select(File).options(selectinload(File.user), selectinload(File.conversation), selectinload(File.message))
     if conversation_id:
         query = query.where(File.conversation_id == conversation_id)
@@ -98,18 +104,20 @@ async def delete_file(db: AsyncSession, file_id: UUID) -> None:
     await db.delete(file)
     await db.commit()
 
-async def save_file_to_storage(file: UploadFile, base_path: str = "uploads/") -> str:
+async def validate_and_save_file_to_storage(file: UploadFile, base_path: str = "uploads/"):
     os.makedirs(base_path, exist_ok=True)
 
-    # unique filename
-    ext = file.filename.split(".")[-1]
-    unique_name = f"{uuid.uuid4()}.{ext}"
+    original_filename = os.path.basename(file.filename or "")
+    if not original_filename or "." not in original_filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
 
+    ext = original_filename.split(".")[-1].lower()
+    if ext not in ALLOWED_FILE_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"File type not allowed: {file.filename}")
+    unique_name = f"{str(uuid.uuid4())}_{original_filename}"
     file_path = os.path.join(base_path, unique_name)
-
-    # save file
-    with open(file_path, "wb") as f:
-        content = await file.read()
-        f.write(content)
-
-    return file_path
+    content = await file.read()
+    if len(content) > 7 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail=f"File too large: {file.filename}. File size should not exceed 7 MB.")
+    await anyio.to_thread.run_sync(_write_file_content, file_path, content)
+    return file_path, len(content)

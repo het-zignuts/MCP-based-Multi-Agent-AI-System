@@ -1,6 +1,8 @@
 from fastapi import FastAPI
+from fastapi.openapi.utils import get_openapi
 from app.core.config import settings
 from app.core.logging import setup_logging
+from app.core.openapi import normalize_binary_upload_schema
 from app.api.ws import router as ws_router
 from app.api.conversation import router as conversation_router
 from app.api.user import router as user_router
@@ -28,6 +30,23 @@ app.include_router(user_router)
 app.include_router(message_router)
 app.include_router(file_router)
 app.include_router(chat_router)
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    normalize_binary_upload_schema(openapi_schema)
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
 
 @app.get("/health")
 async def health_check():

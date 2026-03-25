@@ -5,6 +5,7 @@ from alembic import context
 from sqlmodel import SQLModel
 from app.db.models import User, Conversation, Message, File
 from app.core.config import settings
+from sqlalchemy import create_engine
 
 # Alembic Config object
 config = context.config
@@ -38,7 +39,6 @@ def run_migrations_offline() -> None:
 # ---------------------------
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode (sync engine)."""
-    from sqlalchemy import create_engine
 
     connectable = create_engine(
         settings.DATABASE_URL_SYNC,  # directly pass sync URL

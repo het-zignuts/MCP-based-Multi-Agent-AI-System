@@ -10,6 +10,7 @@ from app.api.message import router as message_router
 from app.api.file import router as file_router
 from app.api.chat import router as chat_router
 from app.api.ws import router as ws_router
+from app.services.file_task_dispatcher import shutdown_local_file_task_executor
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -51,3 +52,8 @@ app.openapi = custom_openapi
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
+
+@app.on_event("shutdown")
+def shutdown_file_task_dispatcher():
+    shutdown_local_file_task_executor()

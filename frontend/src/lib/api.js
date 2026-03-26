@@ -31,3 +31,33 @@ export async function fetchMessages(conversationId) {
 
   return response.data;
 }
+
+export async function fetchConversationFiles(conversationId) {
+  const response = await api.get("/files/", {
+    params: { conversation_id: conversationId },
+  });
+
+  return response.data;
+}
+
+export async function uploadConversationFiles({
+  conversationId,
+  files,
+}) {
+  const formData = new FormData();
+
+  files.forEach((file) => {
+    formData.append("files", file);
+  });
+
+  const response = await api.post("/files/upload", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+    params: {
+      conversation_id: conversationId,
+    },
+  });
+
+  return response.data;
+}

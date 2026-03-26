@@ -27,6 +27,8 @@ async def create_file(db: AsyncSession, payload) -> File:
     conversation = (await db.execute(select(Conversation).where(Conversation.id == payload.conversation_id))).scalar_one_or_none()
     if not conversation:
         raise HTTPException(404, "Conversation not found")
+    if conversation.user_id != payload.user_id:
+        raise HTTPException(403, "Conversation does not belong to this user")
     if payload.message_id:
         message = (await db.execute(select(Message).where(Message.id == payload.message_id))).scalar_one_or_none()
         if not message:

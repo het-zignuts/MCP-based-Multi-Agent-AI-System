@@ -7,15 +7,48 @@ from uuid import UUID
 
 from app.schemas import MessageCreate
 
-async def create_message(session: AsyncSession, payload: MessageCreate):
-    user=await session.execute(select(User).where(User.id==payload.user_id))
-    user=user.scalar_one_or_none()
+async def _load_user_and_conversation(
+    session: AsyncSession,
+    payload: MessageCreate,
+):
+    user = await session.execute(select(User).where(User.id == payload.user_id))
+    user = user.scalar_one_or_none()
     if not user:
         raise HTTPException(404, "User not found")
-    conversation=await session.execute(select(Conversation).where(Conversation.id==payload.conversation_id))
-    conversation=conversation.scalar_one_or_none()
+
+    conversation = await session.execute(
+        select(Conversation).where(Conversation.id == payload.conversation_id)
+    )
+    conversation = conversation.scalar_one_or_none()
     if not conversation:
         raise HTTPException(404, "Conversation not found")
+    if conversation.user_id != payload.user_id:
+        raise HTTPException(status_code=403, detail="Conversation does not belong to this user")
+
+    return user, conversation
+
+async def _attach_files_to_message(
+    session: AsyncSession,
+    payload: MessageCreate,
+    message: Message,
+):
+    if not payload.file_ids:
+        return
+
+    files = await session.execute(select(File).where(File.id.in_(payload.file_ids)))
+    files = files.scalars().all()
+    if len(files) != len(payload.file_ids):
+        raise HTTPException(status_code=404, detail="Some files not found")
+
+    for file in files:
+        if file.conversation_id != payload.conversation_id:
+            raise HTTPException(status_code=400, detail="File does not belong to this conversation")
+        if file.user_id != payload.user_id:
+            raise HTTPException(status_code=403, detail="File does not belong to this user")
+        file.message_id = message.id
+
+async def create_message(session: AsyncSession, payload: MessageCreate):
+    user, conversation = await _load_user_and_conversation(session, payload)
     message=Message(**payload.dict())
     message.user=user
     message.conversation=conversation
@@ -23,16 +56,8 @@ async def create_message(session: AsyncSession, payload: MessageCreate):
     session.add(message)
     await session.flush()
     
-    if payload.file_ids:
-        files=await session.execute(select(File).where(File.id.in_(payload.file_ids)))
-        files=files.scalars().all()
-        if len(files) != len(payload.file_ids):
-            raise HTTPException(status_code=404, detail="Some files not found")
-        for file in files:
-            if file.conversation_id != payload.conversation_id:
-                raise HTTPException(status_code=400, detail="File does not belong to this conversation")
-            file.message_id=message.id
-        # remember to make early loading
+    await _attach_files_to_message(session, payload, message)
+
     session.add(message)
     await session.commit()
 

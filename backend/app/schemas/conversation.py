@@ -1,5 +1,5 @@
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
@@ -24,8 +24,7 @@ class ConversationRead(BaseModel):
     messages: List["MessageRead"] = []
     files: List["FileRead"] = []
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ConversationBasicRead(BaseModel):
     id: UUID
@@ -35,8 +34,7 @@ class ConversationBasicRead(BaseModel):
     convo_metadata: Optional[dict] = None
     user_id: UUID
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 from app.schemas.file import FileRead

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
@@ -27,8 +27,7 @@ class MessageRead(BaseModel):
     updated_at: datetime
     files: Optional[List["FileRead"]] = []  
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 from app.schemas.file import FileRead
 MessageRead.update_forward_refs()

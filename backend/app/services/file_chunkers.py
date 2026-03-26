@@ -193,7 +193,6 @@ def chunk_xlsx(file_path: str) -> List[Dict]:
     excel_file = pd.ExcelFile(file_path)
     for sheet_name in excel_file.sheet_names:
         df = excel_file.parse(sheet_name)
-
         sheet_chunks = chunk_dataframe(df, file_path)
         for chunk in sheet_chunks:
             chunk["metadata"]["sheet"] = sheet_name

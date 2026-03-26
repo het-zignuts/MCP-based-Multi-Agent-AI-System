@@ -1,5 +1,5 @@
 from __future__ import annotations
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 from typing import List
 from uuid import UUID
 from datetime import datetime
@@ -17,5 +17,4 @@ class UserRead(BaseModel):
     is_active: bool
     conversations: List["ConversationBasicRead"] = []
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)

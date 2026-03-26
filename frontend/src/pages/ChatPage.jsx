@@ -1,50 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ChatWindow from "../components/ChatWindow";
 import Sidebar from "../components/SideBar";
 import {
   createConversation,
   fetchConversations,
+  fetchConversationFiles,
   fetchMessages,
 } from "../lib/api";
-import { buildConversationWebSocketUrl } from "../lib/socket";
+import { useConversationSocket } from "../hooks/useConversationSocket";
+import { useConversationUploads } from "../hooks/useConversationUploads";
 
-const HARDCODED_USER_ID = "0c921e1b-f98c-4261-8e3e-99438be83c57";
-
-function createTempMessage(content) {
-  return {
-    id: `temp-${crypto.randomUUID()}`,
-    content,
-    created_at: new Date().toISOString(),
-    pending: true,
-    role: "user",
-    user_id: HARDCODED_USER_ID,
-  };
-}
-
-function mergeIncomingMessages(currentMessages, userMessage, aiMessage) {
-  const nextMessages = [...currentMessages];
-  const pendingIndex = nextMessages.findIndex(
-    (message) =>
-      message.pending &&
-      message.role === "user" &&
-      message.content === userMessage.content
-  );
-
-  if (pendingIndex >= 0) {
-    nextMessages.splice(pendingIndex, 1, userMessage);
-  } else if (!nextMessages.some((message) => message.id === userMessage.id)) {
-    nextMessages.push(userMessage);
-  }
-
-  if (!nextMessages.some((message) => message.id === aiMessage.id)) {
-    nextMessages.push(aiMessage);
-  }
-
-  return nextMessages;
-}
+const ACTIVE_USER_ID = import.meta.env.VITE_USER_ID ?? "";
 
 export default function ChatPage() {
-  const socketRef = useRef(null);
   const [conversations, setConversations] = useState([]);
   const [selectedConversationId, setSelectedConversationId] = useState("");
   const [messagesByConversation, setMessagesByConversation] = useState({});
@@ -53,9 +21,8 @@ export default function ChatPage() {
   const [messageLoadingConversationId, setMessageLoadingConversationId] =
     useState("");
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-  const [connectionState, setConnectionState] = useState("idle");
   const [statusMessage, setStatusMessage] = useState("Loading conversations...");
+  const [draftFilesByConversation, setDraftFilesByConversation] = useState({});
 
   const selectedConversation = useMemo(
     () =>
@@ -85,14 +52,27 @@ export default function ChatPage() {
     });
   };
 
+  const { connectionState, isSending, sendMessage } = useConversationSocket({
+    activeUserId: ACTIVE_USER_ID,
+    selectedConversationId,
+    setMessagesByConversation,
+    setStatusMessage,
+  });
+
   useEffect(() => {
     let isMounted = true;
 
     async function loadConversations() {
+      if (!ACTIVE_USER_ID) {
+        setStatusMessage("Set VITE_USER_ID before loading chats.");
+        setIsConversationListLoading(false);
+        return;
+      }
+
       setIsConversationListLoading(true);
 
       try {
-        const data = await fetchConversations(HARDCODED_USER_ID);
+        const data = await fetchConversations(ACTIVE_USER_ID);
         if (!isMounted) {
           return;
         }
@@ -108,7 +88,7 @@ export default function ChatPage() {
         setStatusMessage(
           sorted.length > 0
             ? "Conversations loaded."
-            : "No conversations found for the hardcoded user."
+            : "No conversations found for the configured user."
         );
       } catch (error) {
         if (!isMounted) {
@@ -179,69 +159,18 @@ export default function ChatPage() {
     };
   }, [selectedConversationId]);
 
-  useEffect(() => {
-    if (!selectedConversationId) {
-      if (socketRef.current) {
-        socketRef.current.close();
-        socketRef.current = null;
-      }
-      setConnectionState("idle");
-      return;
-    }
-
-    const socket = new WebSocket(
-      buildConversationWebSocketUrl(selectedConversationId)
-    );
-
-    socketRef.current = socket;
-    setConnectionState("connecting");
-
-    socket.onopen = () => {
-      setConnectionState("connected");
-    };
-
-    socket.onmessage = (event) => {
-      const payload = JSON.parse(event.data);
-
-      if (payload.type !== "chat") {
-        return;
-      }
-
-      setConversationMessages(selectedConversationId, (currentMessages) =>
-        mergeIncomingMessages(
-          currentMessages,
-          payload.data.user_message,
-          payload.data.ai_message
-        )
-      );
-      setIsSending(false);
-    };
-
-    socket.onerror = () => {
-      setConnectionState("error");
-      setIsSending(false);
-      setStatusMessage("Websocket error while sending or receiving messages.");
-    };
-
-    socket.onclose = () => {
-      setConnectionState("closed");
-    };
-
-    return () => {
-      socket.close();
-      if (socketRef.current === socket) {
-        socketRef.current = null;
-      }
-    };
-  }, [selectedConversationId]);
-
   const handleCreateConversation = async () => {
     setIsCreatingConversation(true);
 
     try {
+      if (!ACTIVE_USER_ID) {
+        setStatusMessage("Set VITE_USER_ID before creating chats.");
+        return;
+      }
+
       const conversation = await createConversation({
         title: `New Chat ${conversations.length + 1}`,
-        user_id: HARDCODED_USER_ID,
+        user_id: ACTIVE_USER_ID,
         convo_metadata: null,
       });
 
@@ -258,27 +187,206 @@ export default function ChatPage() {
     }
   };
 
-  const handleSendMessage = (content) => {
-    const socket = socketRef.current;
+  const mergeConversationFiles = (conversationId, uploadedFiles) => {
+    setConversations((current) =>
+      current.map((conversation) => {
+        if (conversation.id !== conversationId) {
+          return conversation;
+        }
 
-    if (!selectedConversationId || !socket || socket.readyState !== WebSocket.OPEN) {
-      setStatusMessage("Chat connection is not ready yet.");
-      return;
-    }
+        const existingFiles = conversation.files || [];
+        const nextFilesById = new Map(
+          existingFiles.map((file) => [file.id, file])
+        );
 
-    setConversationMessages(selectedConversationId, (currentMessages) => [
-      ...currentMessages,
-      createTempMessage(content),
-    ]);
+        uploadedFiles.forEach((file) => {
+          nextFilesById.set(file.id, file);
+        });
 
-    setIsSending(true);
-    socket.send(
-      JSON.stringify({
-        content,
-        user_id: HARDCODED_USER_ID,
+        return {
+          ...conversation,
+          files: Array.from(nextFilesById.values()),
+        };
       })
     );
   };
+
+  const { isUploadingFiles, uploadFiles } = useConversationUploads({
+    mergeConversationFiles,
+    setStatusMessage,
+  });
+
+  const hasPendingConversationFiles = useMemo(
+    () =>
+      (selectedConversation?.files || []).some(
+        (file) => file.status !== "processed" && file.status !== "failed"
+      ),
+    [selectedConversation?.files]
+  );
+
+  const setDraftFiles = (conversationId, updater) => {
+    setDraftFilesByConversation((current) => {
+      const previousFiles = current[conversationId] || [];
+      const nextFiles =
+        typeof updater === "function" ? updater(previousFiles) : updater;
+
+      return {
+        ...current,
+        [conversationId]: nextFiles,
+      };
+    });
+  };
+
+  useEffect(() => {
+    if (!selectedConversationId) {
+      return;
+    }
+
+    if (!hasPendingConversationFiles) {
+      return;
+    }
+
+    let isActive = true;
+    let timeoutId = null;
+    let attempt = 0;
+
+    const pollStatuses = async () => {
+      try {
+        const latestFiles = await fetchConversationFiles(selectedConversationId);
+        if (!isActive) {
+          return;
+        }
+
+        mergeConversationFiles(selectedConversationId, latestFiles);
+        attempt = 0;
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        attempt += 1;
+        console.error("Failed to refresh file statuses", error);
+      }
+
+      if (!isActive) {
+        return;
+      }
+
+      const nextDelay = Math.min(1000 * 2 ** attempt, 5000);
+      timeoutId = window.setTimeout(() => {
+        void pollStatuses();
+      }, nextDelay);
+    };
+
+    void pollStatuses();
+
+    return () => {
+      isActive = false;
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [hasPendingConversationFiles, selectedConversationId]);
+
+  const handleAttachFiles = async (files) => {
+    if (!selectedConversationId) {
+      setStatusMessage("Select a conversation before uploading files.");
+      return;
+    }
+
+    try {
+      const uploadedFiles = await uploadFiles({
+        conversationId: selectedConversationId,
+        files,
+      });
+      setDraftFiles(selectedConversationId, (currentFiles) => [
+        ...currentFiles,
+        ...uploadedFiles.filter(
+          (file) => !currentFiles.some((currentFile) => currentFile.id === file.id)
+        ),
+      ]);
+      setStatusMessage("Files uploaded. Waiting for processing to finish...");
+    } catch (error) {
+      setStatusMessage(
+        error.response?.data?.detail ||
+          "Could not upload files for this conversation."
+      );
+    }
+  };
+
+  const handleRemoveAttachedFile = (fileId) => {
+    if (!selectedConversationId) {
+      return;
+    }
+
+    setDraftFiles(selectedConversationId, (currentFiles) =>
+      currentFiles.filter((file) => file.id !== fileId)
+    );
+  };
+
+  const handleClearAttachedFiles = () => {
+    if (!selectedConversationId) {
+      return;
+    }
+
+    setDraftFiles(selectedConversationId, []);
+  };
+
+  const handleSendMessage = async ({ content, fileIds }) => {
+    if (!selectedConversationId) {
+      setStatusMessage("Select a conversation before sending a message.");
+      return false;
+    }
+
+    sendMessage(content, fileIds);
+    return true;
+  };
+
+  const attachedFiles = useMemo(() => {
+    if (!selectedConversationId) {
+      return [];
+    }
+
+    const conversationFiles = selectedConversation?.files || [];
+    const conversationFileMap = new Map(
+      conversationFiles.map((file) => [file.id, file])
+    );
+
+    return (draftFilesByConversation[selectedConversationId] || []).map(
+      (file) => conversationFileMap.get(file.id) || file
+    );
+  }, [draftFilesByConversation, selectedConversation, selectedConversationId]);
+
+  const sendDisabledReason = useMemo(() => {
+    if (attachedFiles.some((file) => file.status === "failed")) {
+      return "Remove failed files before sending.";
+    }
+
+    if (
+      attachedFiles.some(
+        (file) => file.status !== "processed" && file.status !== "failed"
+      )
+    ) {
+      return "Files are still being processed. Send will unlock automatically.";
+    }
+
+    return "";
+  }, [attachedFiles]);
+
+  useEffect(() => {
+    if (attachedFiles.length === 0) {
+      return;
+    }
+
+    if (attachedFiles.every((file) => file.status === "processed")) {
+      setStatusMessage("Files processed. You can send your message now.");
+      return;
+    }
+
+    if (attachedFiles.some((file) => file.status === "failed")) {
+      setStatusMessage("One or more files failed processing. Remove them to continue.");
+    }
+  }, [attachedFiles]);
 
   return (
     <div className="app-shell">
@@ -305,11 +413,17 @@ export default function ChatPage() {
         <div className="status-banner">{statusMessage}</div>
 
         <ChatWindow
+          attachedFiles={attachedFiles}
           conversation={selectedConversation}
           isLoading={isLoadingMessages}
           isSending={isSending}
+          isUploading={isUploadingFiles}
           messages={messages}
+          onAttachFiles={handleAttachFiles}
+          onClearAttachedFiles={handleClearAttachedFiles}
+          onRemoveAttachedFile={handleRemoveAttachedFile}
           onSend={handleSendMessage}
+          sendDisabledReason={sendDisabledReason}
         />
       </main>
     </div>

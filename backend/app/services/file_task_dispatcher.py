@@ -4,7 +4,6 @@ from fastapi import BackgroundTasks
 from kombu.exceptions import OperationalError
 
 from app.core.config import settings
-from app.core.celery_app import celery_app
 
 LOCAL_FILE_TASK_EXECUTOR: ThreadPoolExecutor | None = None
 
@@ -34,6 +33,8 @@ def _submit_local_file_processing(file_id: str, storage_path: str) -> None:
 
 
 def _enqueue_with_celery(file_id: str, storage_path: str) -> None:
+    from app.core.celery_app import celery_app
+
     celery_app.send_task(
         "app.tasks.file_tasks.process_file",
         args=[file_id, storage_path],

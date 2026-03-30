@@ -3,9 +3,14 @@ import platform
 from celery import Celery
 from app.core.config import settings
 
+if not settings.CELERY_BROKER_URL:
+    raise RuntimeError(
+        "CELERY_BROKER_URL is not configured. Set it in backend/.env "
+        "(for example, redis://localhost:6379/0) before starting the Celery worker."
+    )
+
 celery_kwargs = {}
-if settings.CELERY_BROKER_URL:
-    celery_kwargs["broker"] = settings.CELERY_BROKER_URL
+celery_kwargs["broker"] = settings.CELERY_BROKER_URL
 if settings.CELERY_RESULT_BACKEND:
     celery_kwargs["backend"] = settings.CELERY_RESULT_BACKEND
 

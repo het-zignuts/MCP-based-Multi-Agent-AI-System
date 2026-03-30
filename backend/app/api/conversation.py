@@ -5,6 +5,10 @@ from uuid import UUID
 from app.schemas.conversation import ConversationCreate, ConversationRead
 from app.crud.conversation import *
 from app.db.database import get_db
+from app.services.message_service import fetch_conversation_history
+from app.schemas.import_convo import ImportConversationRequest
+from app.schemas.message import MessageCreate
+from app.crud.message import create_message
 
 router = APIRouter(prefix="/conversations", tags=["Conversations"])
 
@@ -47,3 +51,40 @@ async def delete(conversation_id: UUID, db: AsyncSession = Depends(get_db)):
         await delete_conversation(db, conversation_id)
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
+    
+@router.get("/{conversation_id}/export")
+async def export_conversation_api(
+    conversation_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    messages = await fetch_conversation_history(db, conversation_id, limit=1000)
+
+    return [
+        {
+            "role": m.role,
+            "content": m.content,
+            "created_at": m.created_at.isoformat(),
+        }
+        for m in messages
+    ]
+
+@router.post("/{conversation_id}/import")
+async def import_conversation_api(
+    conversation_id: UUID,
+    payload: ImportConversationRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    for msg in payload.messages:
+        await create_message(
+            db,
+            MessageCreate(
+                conversation_id=conversation_id,
+                role=msg.role,
+                content=msg.content,
+                user_id=None,  # or system user
+                token_count=0,
+                file_ids=[],
+            ),
+        )
+
+    return {"status": "imported"}

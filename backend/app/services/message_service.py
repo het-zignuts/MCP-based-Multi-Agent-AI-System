@@ -7,6 +7,8 @@ from app.schemas.message import MessageCreate
 from app.crud.message import create_message
 from app.services.llm_service import get_llm_response_async
 from app.services.rag.retriever import retrieve_pipeline
+from app.services.memory_services import build_smart_history
+from app.services.tokenization.token_service import get_message_token_count
 
 def build_message_history(
     messages: list[Message],
@@ -54,18 +56,22 @@ async def generate_ai_response(
 async def fetch_conversation_history(
     db: AsyncSession,
     conversation_id,
-    limit: int = 10,
+    limit: int | None = 200,
 ) -> list[Message]:
-    result = await db.execute(
+    query = (
         select(Message)
         .where(Message.conversation_id == conversation_id)
         .order_by(Message.created_at.desc())
-        .limit(limit)
         .options(
             selectinload(Message.user),
             selectinload(Message.files),
         )
     )
+
+    if limit is not None:
+        query = query.limit(limit)
+
+    result = await db.execute(query)
     return list(reversed(result.scalars().all()))
 
 
@@ -88,12 +94,16 @@ async def send_message(
     payload: MessageCreate,
     rag_context: str = "",
 ):
+    payload.token_count = get_message_token_count(payload)
+
     # Save user message
     user_message = await create_message(db, payload)
 
     #  Fetch last N messages (context)
     messages = await fetch_conversation_history(db, payload.conversation_id)
 
+    messages = await build_smart_history(messages)
+    print("Message history for AI response generation:", messages)
     # Generate AI response
     ai_content = await generate_ai_response(messages, rag_context=rag_context)
 
@@ -103,6 +113,7 @@ async def send_message(
         ai_content,
         file_ids=payload.file_ids,
     )
+    ai_message.token_count = get_message_token_count(ai_message)
     ai_message = await create_message(db, ai_message)
 
     return {
@@ -122,7 +133,7 @@ async def send_message_from_payload(
         conversation_id=conversation_id,
         content=payload["content"],
         role="user",
-        token_count=0,
+        token_count=None,
         file_ids=payload.get("file_ids", []),
     )
     print('File IDs:', message_payload.file_ids)

@@ -1,7 +1,10 @@
 import atexit
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+import json
 
+from loguru import logger
+from openai import OpenAI
 from groq import Groq
 
 from app.core.config import settings
@@ -14,9 +17,17 @@ Answer clearly, directly, and truthfully.
 Use the provided conversation history and retrieved context when they are relevant.
 If the context is missing, incomplete, or not enough to answer safely, say that plainly instead of making things up.
 When files are attached, treat them as user-provided materials and rely on the retrieved context derived from them when available.
+Continue the conversation naturally instead of describing what the user appears to be doing.
+Avoid meta-analysis such as "the user's message seems to..." unless the user explicitly asks for that.
+When the user gives a short follow-up like "so", "and?", or "continue", infer the most natural continuation from the recent conversation.
+Treat explicit facts, titles, names, and identifiers provided by the user as the current working context unless the user asks you to verify or correct them.
+If the user's request includes a quoted passage, excerpt, snippet, or other bounded material, focus on analyzing that provided material instead of re-identifying or replacing it.
+If you are uncertain, ask a brief clarifying question instead of guessing repeatedly or repeatedly correcting yourself.
+Do not loop through multiple conflicting answers. Give the best grounded answer once.
 """
 
 _groq_client = None
+_gemini_client = None
 
 
 def get_groq_client():
@@ -28,6 +39,20 @@ def get_groq_client():
         _groq_client = Groq(api_key=settings.GROQ_API_KEY)
 
     return _groq_client
+
+
+def get_gemini_client():
+    global _gemini_client
+
+    if _gemini_client is None:
+        if not settings.GEMINI_API_KEY:
+            raise ValueError("GEMINI_API_KEY is not configured.")
+        _gemini_client = OpenAI(
+            api_key=settings.GEMINI_API_KEY,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        )
+
+    return _gemini_client
 
 
 def parse_latest_message(content: str) -> tuple[str, str, str]:
@@ -79,18 +104,40 @@ def build_llm_messages(prompt: list[dict[str, str]]) -> list[dict[str, str]]:
     )
     return messages
 
+
+def _serialize_prompt_for_logs(messages: list[dict[str, str]]) -> str:
+    try:
+        return json.dumps(messages, ensure_ascii=True)
+    except Exception:
+        return str(messages)
+
 def get_llm_response(prompt):
     if not settings.MODEL:
         raise ValueError("MODEL is not configured.")
 
-    client = get_groq_client()
     messages = build_llm_messages(prompt)
+    logger.info(
+        "LLM request | model={} | temperature={} | messages={}",
+        settings.MODEL,
+        settings.LLM_TEMPERATURE,
+        _serialize_prompt_for_logs(messages),
+    )
+
+    model_name = settings.MODEL.strip()
+    if model_name.startswith("gemini"):
+        client = get_gemini_client()
+    else:
+        client = get_groq_client()
+
     response = client.chat.completions.create(
-        model=settings.MODEL,
+        model=model_name,
         messages=messages,
         temperature=settings.LLM_TEMPERATURE,
+        reasoning_format="hidden",
+        reasoning_effort="none",
     )
     content = response.choices[0].message.content
+    logger.info("LLM response | content={}", (content or "").strip())
     return (content or "").strip()
 
 async def get_llm_response_async(prompt):

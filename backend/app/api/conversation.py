@@ -57,16 +57,20 @@ async def export_conversation_api(
     conversation_id: UUID,
     db: AsyncSession = Depends(get_db),
 ):
+    conversation = await get_conversation(db, conversation_id)
     messages = await fetch_conversation_history(db, conversation_id, limit=1000)
 
-    return [
-        {
-            "role": m.role,
-            "content": m.content,
-            "created_at": m.created_at.isoformat(),
-        }
-        for m in messages
-    ]
+    return {
+        "convo_metadata": conversation.convo_metadata,
+        "messages": [
+            {
+                "role": m.role,
+                "content": m.content,
+                "created_at": m.created_at.isoformat(),
+            }
+            for m in messages
+        ],
+    }
 
 @router.post("/{conversation_id}/import")
 async def import_conversation_api(
@@ -74,6 +78,11 @@ async def import_conversation_api(
     payload: ImportConversationRequest,
     db: AsyncSession = Depends(get_db),
 ):
+    conversation = await get_conversation(db, conversation_id)
+    if payload.convo_metadata is not None:
+        conversation.convo_metadata = payload.convo_metadata
+        await db.commit()
+
     for msg in payload.messages:
         await create_message(
             db,
@@ -81,7 +90,7 @@ async def import_conversation_api(
                 conversation_id=conversation_id,
                 role=msg.role,
                 content=msg.content,
-                user_id=None,  # or system user
+                user_id=conversation.user_id,
                 token_count=0,
                 file_ids=[],
             ),

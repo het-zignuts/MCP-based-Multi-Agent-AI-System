@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 class ImportMessage(BaseModel):
     role: str
@@ -7,3 +7,4 @@ class ImportMessage(BaseModel):
 
 class ImportConversationRequest(BaseModel):
     messages: List[ImportMessage]
+    convo_metadata: Optional[dict] = None

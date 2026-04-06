@@ -8,7 +8,8 @@ class Settings(BaseSettings):
     ENV:str="dev"
     MODEL: str | None = None
     GROQ_API_KEY: str | None = None
-    LLM_TEMPERATURE: float = 0.2
+    GEMINI_API_KEY: str | None = None
+    LLM_TEMPERATURE: float = 0.1
     FILE_PROCESSING_BACKEND: str = "local"
     CELERY_BROKER_URL: str | None = None
     CELERY_RESULT_BACKEND: str | None = None

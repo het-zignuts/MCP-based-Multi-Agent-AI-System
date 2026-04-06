@@ -12,13 +12,16 @@ def setup_logging():
         format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}"
     )
 
-    log_dir = Path("logs")
+    project_root = Path(__file__).resolve().parents[2]
+    log_dir = project_root / "logs"
     log_dir.mkdir(exist_ok=True)
 
     logger.add(
         log_dir / "app.log",
+        level="INFO",
         rotation="10 MB",
-        retention="10 days"
+        retention="10 days",
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
     )
 
     return logger

@@ -85,6 +85,18 @@ async def update_conversation(db: AsyncSession, conversation_id: UUID, title: st
 
     return conversation
 
+
+async def update_conversation_metadata(
+    db: AsyncSession,
+    conversation_id: UUID,
+    convo_metadata: dict,
+) -> Conversation:
+    return await update_conversation(
+        db,
+        conversation_id,
+        convo_metadata=convo_metadata,
+    )
+
 async def delete_conversation(db: AsyncSession, conversation_id: UUID) -> None:
     conversation = await get_conversation(db, conversation_id)
     await db.delete(conversation)

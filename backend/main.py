@@ -11,7 +11,7 @@ from app.api.file import router as file_router
 from app.api.chat import router as chat_router
 from app.api.ws import router as ws_router
 from app.services.file_task_dispatcher import shutdown_local_file_task_executor
-
+from app.api.memory import router as memory_router
 from fastapi.middleware.cors import CORSMiddleware
 
 logger=setup_logging()
@@ -31,6 +31,7 @@ app.include_router(user_router)
 app.include_router(message_router)
 app.include_router(file_router)
 app.include_router(chat_router)
+app.include_router(memory_router)
 
 def custom_openapi():
     if app.openapi_schema:

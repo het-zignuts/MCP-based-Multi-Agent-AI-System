@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
+from dataclasses import dataclass
 from uuid import UUID
 
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -12,6 +14,8 @@ from app.services.memory.memory_comparator import compare_memories
 
 
 DEFAULT_DEDUP_DISTANCE_THRESHOLD = 0.18
+FACT_CONFLICT_COMPARISON_MAX_DISTANCE = 1.10
+FACT_CONFLICT_MIN_TOKEN_OVERLAP = 1
 
 DEDUP_DISTANCE_BY_TYPE = {
     "preference": 0.14,
@@ -35,8 +39,67 @@ MIN_CONFLICT_COMPARISON_CONFIDENCE = 0.70
 RECENT_CONFLICT_CHECK_LIMIT = 8
 
 
+@dataclass
+class ComparisonBudget:
+    remaining: int | None = None
+
+    def try_consume(self) -> bool:
+        if self.remaining is None:
+            return True
+        if self.remaining <= 0:
+            return False
+        self.remaining -= 1
+        return True
+
+
+def _normalize_memory_text(text: str) -> str:
+    normalized = " ".join((text or "").strip().lower().split())
+    return "".join(char for char in normalized if char.isalnum() or char.isspace())
+
+
 def _normalize_similarity(distance: float) -> float:
     return 1.0 / (1.0 + max(distance, 0.0))
+
+
+def _content_terms(text: str) -> set[str]:
+    stop_words = {
+        "the",
+        "a",
+        "an",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "user",
+        "users",
+        "name",
+        "my",
+        "your",
+        "their",
+        "this",
+        "that",
+        "with",
+        "from",
+        "into",
+        "about",
+        "have",
+        "has",
+        "had",
+        "for",
+        "and",
+        "but",
+        "not",
+        "who",
+        "what",
+    }
+    normalized = _normalize_memory_text(text)
+    return {
+        token for token in normalized.split()
+        if len(token) > 2 and token not in stop_words
+    }
 
 
 def _normalize_recency(memory: Memory) -> float:
@@ -102,10 +165,25 @@ async def _check_duplicate_candidates(
     content: str,
     memory_type: str,
     similar_matches: list[dict],
+    comparison_budget: ComparisonBudget | None = None,
 ) -> tuple[Memory | None, dict | None, float | None]:
     for candidate in similar_matches:
         existing_memory = candidate["memory"]
         distance = candidate["distance"]
+
+        if _normalize_memory_text(existing_memory.content) == _normalize_memory_text(content):
+            return existing_memory, {
+                "relationship": "duplicate",
+                "confidence": 1.0,
+                "reason": "exact normalized text match",
+            }, distance
+
+        if comparison_budget is not None and not comparison_budget.try_consume():
+            logger.info(
+                "Memory comparison budget exhausted | stage=dedup | memory_type={}",
+                memory_type,
+            )
+            break
 
         comparison = await compare_memories(
             existing_content=existing_memory.content,
@@ -127,8 +205,40 @@ async def _check_conflict_candidates(
     content: str,
     memory_type: str,
     recent_memories: list[Memory],
+    embedding: list[float] | None = None,
+    comparison_budget: ComparisonBudget | None = None,
 ) -> tuple[Memory | None, dict | None]:
+    new_terms = _content_terms(content)
     for existing_memory in recent_memories:
+        if _normalize_memory_text(existing_memory.content) == _normalize_memory_text(content):
+            return None, None
+
+        if memory_type == "fact":
+            existing_embedding = getattr(existing_memory, "embedding", None)
+            distance = None
+            if embedding is not None and existing_embedding is not None:
+                try:
+                    distance = sum(
+                        (float(left) - float(right)) ** 2
+                        for left, right in zip(existing_embedding, embedding)
+                    ) ** 0.5
+                except (TypeError, ValueError):
+                    distance = None
+
+            overlap = len(_content_terms(existing_memory.content) & new_terms)
+            if distance is not None and distance > FACT_CONFLICT_COMPARISON_MAX_DISTANCE:
+                if overlap < FACT_CONFLICT_MIN_TOKEN_OVERLAP:
+                    continue
+            elif overlap < FACT_CONFLICT_MIN_TOKEN_OVERLAP and distance is None:
+                continue
+
+        if comparison_budget is not None and not comparison_budget.try_consume():
+            logger.info(
+                "Memory comparison budget exhausted | stage=conflict | memory_type={}",
+                memory_type,
+            )
+            break
+
         comparison = await compare_memories(
             existing_content=existing_memory.content,
             new_content=content,
@@ -154,6 +264,7 @@ async def create_memory_with_embedding(
     memory_metadata: dict | None = None,
     importance_score: float = 0.5,
     source: str = "conversation",
+    comparison_budget: ComparisonBudget | None = None,
 ) -> Memory | None:
     content = content.strip()
     if not content:
@@ -181,6 +292,7 @@ async def create_memory_with_embedding(
         content=content,
         memory_type=memory_type,
         similar_matches=dedup_candidates,
+        comparison_budget=comparison_budget,
     )
 
     if matched_memory is not None:
@@ -225,6 +337,8 @@ async def create_memory_with_embedding(
         content=content,
         memory_type=memory_type,
         recent_memories=recent_same_type_memories,
+        embedding=embedding,
+        comparison_budget=comparison_budget,
     )
 
     if conflict_memory is not None:

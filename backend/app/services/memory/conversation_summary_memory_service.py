@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.conversation import get_conversation
 from app.crud.memory import get_recent_memories_by_type
-from app.services.memory.ltm_service import create_memory_with_embedding
+from app.services.memory.ltm_service import ComparisonBudget, create_memory_with_embedding
 from app.services.memory_services import get_stm_state
 
 
@@ -11,6 +11,7 @@ async def promote_conversation_summary_to_ltm(
     *,
     conversation_id,
     user_id,
+    comparison_budget: ComparisonBudget | None = None,
 ) -> dict | None:
     conversation = await get_conversation(db, conversation_id)
     convo_metadata = conversation.convo_metadata or {}
@@ -74,6 +75,7 @@ async def promote_conversation_summary_to_ltm(
         },
         importance_score=0.85,
         source="conversation_summary",
+        comparison_budget=comparison_budget,
     )
 
     if memory is None:

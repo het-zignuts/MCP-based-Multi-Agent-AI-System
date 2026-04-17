@@ -47,7 +47,7 @@ async def summarize_messages(messages, existing_summary: str = ""):
     """
     summary = await get_llm_response_async([
         {"role": "user", "content": prompt}
-    ])
+    ], purpose="stm_summarization")
     return summary
 
 

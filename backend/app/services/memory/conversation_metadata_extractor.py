@@ -23,11 +23,13 @@ Return this exact shape:
 Rules:
 - topics: short topic labels
 - entities: important people, products, projects, songs, places, tools, or named concepts
-- active_goals: explicit user goals/tasks that are still relevant
+- active_goals: only goals/tasks that are active in the CURRENT conversation focus right now
 - sentiment: one of "positive", "neutral", "negative", "mixed"
 - summary_hint: 1 short sentence about the current conversation focus
 - If a field has no useful value, return an empty list or "neutral" or "".
 - Do not invent facts.
+- Do not carry forward superseded or unrelated goals from earlier parts of the conversation.
+- Do not encode recurring answer formats, stylistic quirks, games, or temporary reply patterns as active_goals unless the user is clearly still pursuing them right now.
 """
 
 
@@ -52,7 +54,7 @@ Conversation:
 
     response = await get_llm_response_async([
         {"role": "user", "content": prompt}
-    ])
+    ], purpose="conversation_metadata_extraction")
 
     try:
         parsed = json.loads(response)

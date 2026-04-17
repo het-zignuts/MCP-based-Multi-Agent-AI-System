@@ -5,7 +5,7 @@ from uuid import UUID
 from app.schemas.conversation import ConversationCreate, ConversationRead
 from app.crud.conversation import *
 from app.db.database import get_db
-from app.services.message_service import fetch_conversation_history
+from app.services.memory.history_service import fetch_conversation_history
 from app.schemas.import_convo import ImportConversationRequest
 from app.schemas.message import MessageCreate
 from app.crud.message import create_message

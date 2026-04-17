@@ -32,7 +32,19 @@ For each extracted memory, return:
   - durable
   - ongoing
   - temporary
-- memory_metadata: object with small useful metadata
+- memory_metadata: object with small useful metadata including:
+  - source: "conversation"
+  - specificity_score: float between 0.0 and 1.0
+  - support_span_count: integer >= 0
+  - is_generic_persona_claim: boolean
+  - has_concrete_anchor: boolean
+  - source_kind: one of "statement", "question", "request", "assistant_claim", "hypothetical", "unclear"
+  - profile_write_eligible: boolean
+  - profile_write_confidence: float between 0.0 and 1.0
+  - value_specificity: one of "concrete", "vague"
+  - overwrite_risk: one of "none", "low", "high"
+  - profile_category: one of "identity", "preference", "project", "relationship", "wellbeing", "other"
+  - profile_attributes: short list of durable user attributes when applicable, else []
 
 Return this JSON shape exactly:
 {
@@ -45,7 +57,13 @@ Return this JSON shape exactly:
       "evidence": "explicit",
       "temporal_scope": "durable",
       "memory_metadata": {
-        "source": "conversation"
+        "source": "conversation",
+        "specificity_score": 0.9,
+        "support_span_count": 1,
+        "is_generic_persona_claim": false,
+        "has_concrete_anchor": true,
+        "profile_category": "preference",
+        "profile_attributes": []
       }
     }
   ]
@@ -58,6 +76,19 @@ Rules:
 - Do NOT store statements that only describe what the user is currently asking about unless they also reveal lasting personal context.
 - A directly stated personal preference, fact, decision, or ongoing task may be stored.
 - A one-off topic of discussion is not automatically a durable memory.
+- Broad inferred persona summaries should be avoided unless they are both highly specific and clearly supported across the conversation.
+- Prefer concrete anchored memories over vague identity/personality claims.
+- A memory is "generic persona" when it mainly describes broad traits or tastes without a concrete recurring anchor, named entity, project, decision, or responsibility.
+- specificity_score should be high only when the memory is concrete and narrow rather than broad and generic.
+- support_span_count should estimate how many distinct parts of the conversation support the memory.
+- has_concrete_anchor should be true when the memory is tied to a named entity, project, recurring behavior, explicit preference, or durable responsibility.
+- profile_category should describe the memory's role in the user's profile rather than its memory_type.
+- profile_attributes should list durable user attributes explicitly captured by the memory, such as name, profession, role, company, location, education, or identity labels, and should be empty when not applicable.
+- source_kind should describe where the memory really comes from. If the content comes only from an assistant answer or a user recall-question, do not mark it as a user statement.
+- profile_write_eligible should be true only when the memory is safe to use later for profile refresh or overwrite decisions.
+- profile_write_confidence should reflect confidence in that profile-write decision.
+- value_specificity should be "concrete" only when the value is specific enough to be actionable later.
+- overwrite_risk should be "high" when this memory might wrongly replace a stronger stored fact.
 - Use "explicit" when the user directly stated the information.
 - Use "repeated" when the information appears multiple times or is strongly reinforced across the conversation.
 - Use "inferred" only when the conclusion is reasonable but not directly stated.
@@ -82,7 +113,13 @@ Output memory:
   "evidence": "explicit",
   "temporal_scope": "durable",
   "memory_metadata": {
-    "source": "conversation"
+    "source": "conversation",
+    "specificity_score": 0.95,
+    "support_span_count": 1,
+    "is_generic_persona_claim": false,
+    "has_concrete_anchor": true,
+    "profile_category": "preference",
+    "profile_attributes": []
   }
 }
 
@@ -98,7 +135,13 @@ Output memory:
   "evidence": "explicit",
   "temporal_scope": "ongoing",
   "memory_metadata": {
-    "source": "conversation"
+    "source": "conversation",
+    "specificity_score": 0.9,
+    "support_span_count": 1,
+    "is_generic_persona_claim": false,
+    "has_concrete_anchor": true,
+    "profile_category": "project",
+    "profile_attributes": []
   }
 }
 
@@ -120,7 +163,9 @@ Output memory:
   "evidence": "explicit",
   "temporal_scope": "durable",
   "memory_metadata": {
-    "source": "conversation"
+    "source": "conversation",
+    "profile_category": "preference",
+    "profile_attributes": []
   }
 }
 
@@ -143,7 +188,7 @@ Conversation:
 
     response = await get_llm_response_async([
         {"role": "user", "content": prompt}
-    ])
+    ], purpose="memory_extraction")
 
     try:
         parsed = json.loads(response)
@@ -195,6 +240,83 @@ Conversation:
 
         if not isinstance(memory_metadata, dict):
             memory_metadata = {}
+
+        specificity_score = memory_metadata.get("specificity_score", 0.5)
+        support_span_count = memory_metadata.get("support_span_count", 0)
+        is_generic_persona_claim = bool(memory_metadata.get("is_generic_persona_claim", False))
+        has_concrete_anchor = bool(memory_metadata.get("has_concrete_anchor", False))
+        source_kind = str(memory_metadata.get("source_kind", "unclear")).strip().lower()
+        profile_write_eligible = bool(memory_metadata.get("profile_write_eligible", False))
+        profile_write_confidence = memory_metadata.get("profile_write_confidence", confidence_score)
+        value_specificity = str(memory_metadata.get("value_specificity", "vague")).strip().lower()
+        overwrite_risk = str(memory_metadata.get("overwrite_risk", "high")).strip().lower()
+        profile_category = str(memory_metadata.get("profile_category", "other")).strip().lower()
+        profile_attributes = memory_metadata.get("profile_attributes", [])
+
+        try:
+            specificity_score = float(specificity_score)
+        except (TypeError, ValueError):
+            specificity_score = 0.5
+
+        try:
+            support_span_count = int(support_span_count)
+        except (TypeError, ValueError):
+            support_span_count = 0
+
+        try:
+            profile_write_confidence = float(profile_write_confidence)
+        except (TypeError, ValueError):
+            profile_write_confidence = confidence_score
+
+        specificity_score = max(0.0, min(1.0, specificity_score))
+        support_span_count = max(0, support_span_count)
+        profile_write_confidence = max(0.0, min(1.0, profile_write_confidence))
+        allowed_source_kinds = {
+            "statement",
+            "question",
+            "request",
+            "assistant_claim",
+            "hypothetical",
+            "unclear",
+        }
+        if source_kind not in allowed_source_kinds:
+            source_kind = "unclear"
+        if value_specificity not in {"concrete", "vague"}:
+            value_specificity = "vague"
+        if overwrite_risk not in {"none", "low", "high"}:
+            overwrite_risk = "high"
+        allowed_profile_categories = {
+            "identity",
+            "preference",
+            "project",
+            "relationship",
+            "wellbeing",
+            "other",
+        }
+        if profile_category not in allowed_profile_categories:
+            profile_category = "other"
+        if not isinstance(profile_attributes, list):
+            profile_attributes = []
+        profile_attributes = [
+            str(attribute).strip().lower()
+            for attribute in profile_attributes
+            if str(attribute).strip()
+        ][:5]
+
+        memory_metadata = {
+            **memory_metadata,
+            "specificity_score": specificity_score,
+            "support_span_count": support_span_count,
+            "is_generic_persona_claim": is_generic_persona_claim,
+            "has_concrete_anchor": has_concrete_anchor,
+            "source_kind": source_kind,
+            "profile_write_eligible": profile_write_eligible,
+            "profile_write_confidence": profile_write_confidence,
+            "value_specificity": value_specificity,
+            "overwrite_risk": overwrite_risk,
+            "profile_category": profile_category,
+            "profile_attributes": profile_attributes,
+        }
 
         cleaned_memories.append({
             "content": content,

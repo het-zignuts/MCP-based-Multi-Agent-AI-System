@@ -3,6 +3,7 @@ from sqlmodel import select
 from app.db.models.chunks import Chunk
 from app.db.models.file import File
 from app.services.embeddings.embedding_utils import embed_text_async
+from app.services.timing import log_async_timing
 
 async def retrieve_similar_chunks(
     query_embedding,
@@ -88,6 +89,7 @@ async def get_pending_file_names(
     )
     return list(result.scalars().all())
 
+@log_async_timing("retrieve_pipeline")
 async def retrieve_pipeline(
     query: str,
     file_ids,

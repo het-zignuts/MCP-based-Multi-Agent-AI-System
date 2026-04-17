@@ -9,6 +9,7 @@ from app.services.summarization.summarization_service import (
     normalize_summary,
     summarize_messages,
 )
+from app.services.timing import log_async_timing
 
 SUMMARY_TOKEN_BUDGET = 1000
 RAW_HISTORY_TOKEN_BUDGET = 2600
@@ -56,6 +57,7 @@ def build_summary_message(rolling_summary: str) -> Message | None:
     )
 
 
+@log_async_timing("build_stm_context")
 async def build_stm_context(
     messages,
     existing_summary: str = "",
@@ -115,6 +117,7 @@ async def build_stm_context(
     )
 
 
+@log_async_timing("build_smart_history")
 async def build_smart_history(messages, convo_metadata: dict | None = None, max_tokens=3600):
     stm_state = get_stm_state(convo_metadata)
     stm_context = await build_stm_context(

@@ -6,19 +6,47 @@ from typing import List, Dict
 import os
 import pandas as pd
 
+
 def clean_pdf_text(text: str) -> str:
     text = re.sub(r"\n+", "\n", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
-def chunk_pdf(text: str):
+def chunk_sections(sections: List[Dict]) -> List[Dict]:
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=500,
-        chunk_overlap=100,
-        separators=["\n\n", "\n", ".", " ", ""],
+        chunk_overlap=100
     )
 
-    return splitter.split_text(text)
+    final_chunks = []
+
+    for section in sections:
+        full_text = " ".join(section["content"])
+        split_chunks = splitter.split_text(full_text)
+
+        # Title chunk (IMPORTANT)
+        final_chunks.append({
+            "content": section["title"],
+            "metadata": {
+                "section_title": section["title"],
+                "section_id": section["section_id"],
+                "is_title": True
+            }
+        })
+
+        # Content chunks
+        for i, chunk in enumerate(split_chunks):
+            final_chunks.append({
+                "content": chunk,
+                "metadata": {
+                    "section_title": section["title"],
+                    "section_id": section["section_id"],
+                    "chunk_index": i,
+                    "is_title": False
+                }
+            })
+
+    return final_chunks
 
 def chunk_markdown_and_docx(text: str):
     headers_to_split_on = [

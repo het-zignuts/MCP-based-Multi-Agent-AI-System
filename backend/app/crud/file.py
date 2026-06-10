@@ -42,7 +42,7 @@ async def create_file(db: AsyncSession, payload) -> File:
         file_type=payload.file_type,
         file_size=payload.file_size,
         storage_path=payload.storage_path,
-        status="uploaded"
+        status=getattr(payload, "status", "uploaded")
     )
     db.add(file)
     await db.commit()

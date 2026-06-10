@@ -216,6 +216,28 @@ export default function ChatPage() {
     setStatusMessage,
   });
 
+  const refreshSelectedConversation = async (conversationId) => {
+    const targetConversationId = conversationId || selectedConversationId;
+    if (!targetConversationId) {
+      return;
+    }
+
+    const [latestMessages, latestFiles] = await Promise.all([
+      fetchMessages(targetConversationId),
+      fetchConversationFiles(targetConversationId),
+    ]);
+
+    setConversationMessages(
+      targetConversationId,
+      [...latestMessages].sort(
+        (left, right) =>
+          new Date(left.created_at).getTime() -
+          new Date(right.created_at).getTime()
+      )
+    );
+    mergeConversationFiles(targetConversationId, latestFiles);
+  };
+
   const hasPendingConversationFiles = useMemo(
     () =>
       (selectedConversation?.files || []).some(
@@ -341,6 +363,7 @@ export default function ChatPage() {
     sendMessage(content, fileIds);
     return true;
   };
+
 
   const attachedFiles = useMemo(() => {
     if (!selectedConversationId) {

@@ -18,6 +18,11 @@ from app.services.memory.background_memory_pipeline import (
 from app.services.memory.user_profile_cache_service import (
     update_profile_snapshot_from_user_message,
 )
+from app.services.file_generation.intent_router import (
+    classify_generation_intent_with_llm,
+    detect_generation_intent,
+)
+from app.services.file_generation.service import generate_file_artifact
 
 EMPTY_RESPONSE_FALLBACK = (
     "I lost the thread for a moment. Please repeat the last line you want me to continue from, "
@@ -228,6 +233,40 @@ async def send_message_from_payload(
     authenticated_user_id,
 ):
     request_started_at = perf_counter()
+    generation_decision = detect_generation_intent(
+        text=payload["content"],
+        explicit_format=payload.get("format"),
+        explicit_action=payload.get("action"),
+    )
+
+    if not generation_decision.should_generate:
+        generation_decision = await classify_generation_intent_with_llm(
+            text=payload["content"],
+            current_decision=generation_decision,
+        )
+        logger.info("Using LLM for intent detection | should_generate=%s | reason=%s", generation_decision.should_generate, generation_decision.reason)
+
+    if generation_decision.should_generate:
+        generated = await generate_file_artifact(
+            db,
+            user_id=authenticated_user_id,
+            conversation_id=conversation_id,
+            prompt=payload["content"],
+            output_format=payload.get("format") or generation_decision.format,
+            file_ids=payload.get("file_ids", []),
+            decision=generation_decision,
+            explicit_action=payload.get("action"),
+            persist_messages=True,
+        )
+        logger.info(
+            "Chat timing | stage=generate_file_artifact | duration_min={}",
+            elapsed_minutes(request_started_at),
+        )
+        return {
+            "user_message": generated.user_message,
+            "ai_message": generated.assistant_message,
+        }
+
     message_payload = MessageCreate(
         user_id=authenticated_user_id,
         conversation_id=conversation_id,

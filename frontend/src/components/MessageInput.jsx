@@ -38,6 +38,7 @@ export default function MessageInput({
     onClearAttachedFiles();
   };
 
+
   const handleKeyDown = (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
@@ -80,6 +81,7 @@ export default function MessageInput({
               ))}
             </div>
           ) : null}
+
 
           <textarea
             className="composer-input"

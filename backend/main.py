@@ -8,6 +8,7 @@ from app.api.conversation import router as conversation_router
 from app.api.user import router as user_router
 from app.api.message import router as message_router
 from app.api.file import router as file_router
+from app.api.file_generation import router as file_generation_router
 from app.api.chat import router as chat_router
 from app.api.ws import router as ws_router
 from app.services.file_task_dispatcher import shutdown_local_file_task_executor
@@ -30,6 +31,7 @@ app.include_router(conversation_router)
 app.include_router(user_router)
 app.include_router(message_router)
 app.include_router(file_router)
+app.include_router(file_generation_router)
 app.include_router(chat_router)
 app.include_router(memory_router)
 

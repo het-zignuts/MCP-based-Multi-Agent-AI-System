@@ -12,6 +12,7 @@ class FileCreate(BaseModel):
     file_type: str
     file_size: int
     storage_path: str
+    status: str = "uploaded"
 
 class FileRead(BaseModel):
     id: UUID

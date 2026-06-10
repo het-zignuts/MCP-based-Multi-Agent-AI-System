@@ -142,11 +142,15 @@ def parse_latest_message(content: str) -> tuple[str, str, str]:
     return user_query.strip(), attached_files.strip(), context.strip()
 
 
-def build_llm_messages(prompt: list[dict[str, str]]) -> list[dict[str, str]]:
+def build_llm_messages(
+    prompt: list[dict[str, str]],
+    system_prompt: str | None = None,
+) -> list[dict[str, str]]:
+    system_content = system_prompt or SYSTEM_PROMPT
     if not prompt:
-        return [{"role": "system", "content": SYSTEM_PROMPT}]
+        return [{"role": "system", "content": system_content}]
 
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages = [{"role": "system", "content": system_content}]
 
     for message in prompt[:-1]:
         messages.append(
@@ -210,9 +214,13 @@ def _resolve_executor_for_purpose(purpose: str) -> ThreadPoolExecutor:
     return LLM_EXECUTOR
 
 
-def get_llm_response(prompt, purpose: str = "unspecified"):
+def get_llm_response(
+    prompt,
+    purpose: str = "unspecified",
+    system_prompt: str | None = None,
+):
     model_name = _resolve_model_for_purpose(purpose)
-    messages = build_llm_messages(prompt)
+    messages = build_llm_messages(prompt, system_prompt=system_prompt)
     started_at = perf_counter()
     logger.info(
         "LLM request | purpose={} | model={} | lane={} | temperature={} | message_count={} | prompt_chars={} | messages={}",
@@ -254,7 +262,17 @@ def get_llm_response(prompt, purpose: str = "unspecified"):
     )
     return (content or "").strip()
 
-async def get_llm_response_async(prompt, purpose: str = "unspecified"):
+async def get_llm_response_async(
+    prompt,
+    purpose: str = "unspecified",
+    system_prompt: str | None = None,
+):
     loop = asyncio.get_running_loop()
     executor = _resolve_executor_for_purpose(purpose)
-    return await loop.run_in_executor(executor, get_llm_response, prompt, purpose)
+    return await loop.run_in_executor(
+        executor,
+        get_llm_response,
+        prompt,
+        purpose,
+        system_prompt,
+    )

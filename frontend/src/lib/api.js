@@ -61,3 +61,15 @@ export async function uploadConversationFiles({
 
   return response.data;
 }
+
+export function getGeneratedFileRawUrl(fileId) {
+  return `${API_BASE_URL}/files/generated/${fileId}/raw`;
+}
+
+export function getGeneratedFilePreviewUrl(fileId) {
+  return `${API_BASE_URL}/files/generated/${fileId}/preview`;
+}
+
+export function getGeneratedFileDownloadUrl(fileId) {
+  return `${API_BASE_URL}/files/generated/${fileId}/download`;
+}

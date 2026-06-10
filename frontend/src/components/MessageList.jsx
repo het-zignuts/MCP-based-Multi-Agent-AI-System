@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { getGeneratedFileRawUrl, getGeneratedFilePreviewUrl } from "../lib/api";
 
 function formatTime(value) {
   if (!value) {
@@ -9,6 +10,37 @@ function formatTime(value) {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function renderContentWithLinks(content) {
+  if (!content) {
+    return content;
+  }
+
+  const urlRegex = /(https?:\/\/[^\s]+|\/files\/generated\/[0-9a-fA-F-]+\/preview)/g;
+  const parts = [];
+  let lastIndex = 0;
+
+  let match;
+  while ((match = urlRegex.exec(content)) !== null) {
+    const url = match[0];
+    const index = match.index;
+    if (index > lastIndex) {
+      parts.push(content.slice(lastIndex, index));
+    }
+    parts.push(
+      <a key={`${url}-${index}`} href={url} target="_blank" rel="noreferrer">
+        {url}
+      </a>
+    );
+    lastIndex = index + url.length;
+  }
+
+  if (lastIndex < content.length) {
+    parts.push(content.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : content;
 }
 
 export default function MessageList({
@@ -71,7 +103,30 @@ export default function MessageList({
             </span>
             <span className="message-time">{formatTime(message.created_at)}</span>
           </div>
-          <div className="message-body">{message.content}</div>
+          <div className="message-body">{renderContentWithLinks(message.content)}</div>
+          {message.files?.length ? (
+            <div className="message-files">
+              {message.files.map((file) => (
+                <div className="message-file" key={file.id}>
+                  <a
+                    className="message-file__name"
+                    href={
+                      file.file_type === "application/pdf"
+                        ? getGeneratedFileRawUrl(file.id)
+                        : getGeneratedFilePreviewUrl(file.id)
+                    }
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    {file.filename}
+                  </a>
+                  <span className={`message-file__status message-file__status--${file.status}`}>
+                    {file.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </article>
       ))}
 

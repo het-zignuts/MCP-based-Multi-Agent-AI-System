@@ -10,7 +10,7 @@ from pathlib import Path
 
 import fitz
 
-from app.services.file_generation.models import (
+from app.schemas import (
     ArtifactDocument,
     GenerationFormat,
 )

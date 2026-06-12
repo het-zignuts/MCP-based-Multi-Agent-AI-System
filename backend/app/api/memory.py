@@ -11,7 +11,7 @@ from app.services.memory.ltm_service import (
     search_memories_with_scores,
 )
 from app.services.memory.memory_promoter import promote_memories_from_messages
-from app.services.memory.user_profile_service import build_user_profile
+from app.services.user_profile.user_profile_service import build_user_profile
 
 router = APIRouter(prefix="/memories", tags=["Memories"])
 

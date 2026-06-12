@@ -1,5 +1,6 @@
 from __future__ import annotations
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+from typing import Literal
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
@@ -36,6 +37,22 @@ class ConversationBasicRead(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+class ConversationMetadata(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    topics: list[str] = Field(default_factory=list)
+    entities: list[str] = Field(default_factory=list)
+    active_goals: list[str] = Field(default_factory=list)
+
+    sentiment: Literal[
+        "positive",
+        "neutral",
+        "negative",
+        "mixed",
+    ] = "neutral"
+
+    summary_hint: str = ""
 
 from app.schemas.file import FileRead
 from app.schemas.message import MessageRead

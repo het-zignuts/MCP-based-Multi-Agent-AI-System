@@ -6,15 +6,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.conversation import get_conversation
 from app.db.models.message import Message
-from app.services.memory.history_service import fetch_conversation_history
+from  app.services.conversation.history_service import fetch_conversation_history
 from app.services.memory.context_router import (
     ContextPolicy,
     route_context_policy,
 )
 from app.services.memory.ltm_service import search_memories_with_scores
-from app.services.memory.user_profile_cache_service import get_cached_user_profile_text
-from app.services.memory_services import build_smart_history, get_stm_state
-from app.services.timing import elapsed_minutes, log_async_timing
+from app.services.user_profile.user_profile_cache_service import get_cached_user_profile_text
+from app.services.memory.memory_services import build_smart_history, get_stm_state
+from  app.services.time.timing import elapsed_minutes, log_async_timing
 
 
 @dataclass

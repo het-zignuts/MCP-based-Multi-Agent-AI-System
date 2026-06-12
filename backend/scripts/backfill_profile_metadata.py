@@ -10,7 +10,7 @@ from app.db.models import Memory
 from app.services.memory.memory_metadata_annotator import (
     annotate_memory_profile_metadata,
 )
-from app.services.memory.user_profile_cache_service import refresh_user_profile_cache
+from app.services.user_profile.user_profile_cache_service import refresh_user_profile_cache
 
 
 def _needs_profile_backfill(memory: Memory) -> bool:

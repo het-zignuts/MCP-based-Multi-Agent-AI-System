@@ -14,14 +14,14 @@ from app.services.memory.memory_promoter import (
     messages_to_conversation_text,
 )
 from app.services.memory.lifecycle_service import maintain_memory_lifecycle
-from app.services.memory.conversation_metadata_extractor import extract_conversation_metadata
-from app.services.memory.conversation_summary_memory_service import (
+from  app.services.conversation.conversation_metadata_extractor import extract_conversation_metadata
+from  app.services.conversation.conversation_summary_memory_service import (
     promote_conversation_summary_to_ltm,
 )
-from app.services.memory.user_profile_cache_service import schedule_user_profile_refresh_if_needed
-from app.services.timing import elapsed_minutes, log_async_timing
+from app.services.user_profile.user_profile_cache_service import schedule_user_profile_refresh_if_needed
+from  app.services.time.timing import elapsed_minutes, log_async_timing
 from time import perf_counter
-from app.services.memory.conversation_metadata_service import merge_conversation_metadata
+from  app.services.conversation.conversation_metadata_service import merge_conversation_metadata
 
 _USER_LOCKS: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 _USER_TASKS: dict[str, asyncio.Task] = {}
@@ -55,7 +55,7 @@ async def run_memory_maintenance_pipeline(
     async with user_lock:
         async with AsyncSessionLocal() as db:
             try:
-                from app.services.memory.history_service import fetch_conversation_history
+                from  app.services.conversation.history_service import fetch_conversation_history
 
                 history_fetch_started_at = perf_counter()
                 updated_messages = await fetch_conversation_history(
@@ -119,7 +119,7 @@ async def run_memory_maintenance_pipeline(
                     refreshed_conversation = await get_conversation(db, conversation_id)
                     merged_metadata = merge_conversation_metadata(
                         refreshed_conversation.convo_metadata,
-                        extracted_metadata,
+                        extracted_metadata.model_dump(),
                     )
                     await update_conversation_metadata(
                         db,

@@ -10,13 +10,13 @@ from app.crud.user_profile_snapshot import (
 )
 from app.db.database import AsyncSessionLocal
 from app.db.models.message import Message
-from app.services.memory.history_service import fetch_conversation_history
-from app.services.memory.profile_candidate_extractor import (
+from  app.services.conversation.history_service import fetch_conversation_history
+from app.services.user_profile.profile_candidate_extractor import (
     extract_profile_candidates_from_messages,
 )
-from app.services.memory.profile_renderer import render_profile_snapshot
-from app.services.memory.profile_resolver import resolve_profile_items
-from app.services.memory.user_profile_service import (
+from app.services.user_profile.profile_renderer import render_profile_snapshot
+from app.services.user_profile.profile_resolver import resolve_profile_items
+from app.services.user_profile.user_profile_service import (
     PROFILE_RELEVANT_TYPES,
     merge_profile_items_from_memories,
 )

@@ -1,5 +1,5 @@
-from app.services.file_generation.models import ArtifactDocument, ArtifactSection
-from app.services.file_generation.serializer import render_document_bytes
+from app.schemas import ArtifactDocument, ArtifactSection
+from app.services.file_generation.file_renderer import render_document_bytes
 
 
 def test_render_document_bytes_pdf_contains_text():

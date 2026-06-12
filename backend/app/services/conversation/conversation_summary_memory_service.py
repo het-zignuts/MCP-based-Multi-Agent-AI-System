@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.crud.conversation import get_conversation
 from app.crud.memory import get_recent_memories_by_type
 from app.services.memory.ltm_service import ComparisonBudget, create_memory_with_embedding
-from app.services.memory_services import get_stm_state
+from app.services.memory.memory_services import get_stm_state
 
 
 async def promote_conversation_summary_to_ltm(

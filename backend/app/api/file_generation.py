@@ -17,10 +17,10 @@ from app.schemas.file_generation import (
     FileGenerationResultResponse,
     GeneratedFileRead,
 )
-from app.services.file_generation.serializer import get_mime_type
-from app.services.file_generation.service import (
+from app.services.file_generation.file_renderer import get_mime_type
+from app.services.file_generation.file_generation_service import (
     generate_file_artifact,
-    preview_file_artifact,
+    # preview_file_artifact,
 )
 from app.crud.file import get_file
 

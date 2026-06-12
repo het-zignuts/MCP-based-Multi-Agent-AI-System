@@ -9,7 +9,7 @@ from app.services.summarization.summarization_service import (
     normalize_summary,
     summarize_messages,
 )
-from app.services.timing import log_async_timing
+from  app.services.time.timing import log_async_timing
 
 SUMMARY_TOKEN_BUDGET = 1000
 RAW_HISTORY_TOKEN_BUDGET = 2600

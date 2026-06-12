@@ -6,23 +6,24 @@ from app.db.models import Message
 from app.schemas.message import MessageCreate
 from app.crud.message import create_message
 from app.crud.conversation import get_conversation, update_conversation_metadata
-from app.services.llm_service import get_llm_response_async
+from app.services.llm import llm
 from app.services.rag.retriever import retrieve_pipeline
 from app.services.memory.unified_memory_service import build_unified_memory_context
-from app.services.memory_services import set_stm_state
-from app.services.timing import elapsed_minutes, log_async_timing
+from app.services.memory.memory_services import set_stm_state
+from  app.services.time.timing import elapsed_minutes, log_async_timing
 from app.services.tokenization.token_service import get_message_token_count
+from app.prompts import CHAT_SYSTEM_PROMPT
 from app.services.memory.background_memory_pipeline import (
     schedule_memory_maintenance_pipeline,
 )
-from app.services.memory.user_profile_cache_service import (
+from app.services.user_profile.user_profile_cache_service import (
     update_profile_snapshot_from_user_message,
 )
 from app.services.file_generation.intent_router import (
     classify_generation_intent_with_llm,
     detect_generation_intent,
 )
-from app.services.file_generation.service import generate_file_artifact
+from app.services.file_generation.file_generation_service import generate_file_artifact
 
 EMPTY_RESPONSE_FALLBACK = (
     "I lost the thread for a moment. Please repeat the last line you want me to continue from, "
@@ -34,7 +35,7 @@ def build_message_history(
     messages: list[Message],
     rag_context: str = "",
 ) -> list[dict[str, str]]:
-    history = []
+    history: list[dict[str, str]] = []
     for message in messages:
         attached_files = getattr(message, "files", []) or []
         file_lines = [
@@ -66,6 +67,57 @@ def build_message_history(
 
     return history
 
+def parse_latest_message(content: str) -> tuple[str, str, str]:
+    context_marker = "\n\nRelevant context:\n"
+    attachment_marker = "\n\nAttached files:\n"
+
+    if context_marker in content:
+        user_portion, context = content.split(context_marker, 1)
+    else:
+        user_portion = content
+        context = ""
+
+    if attachment_marker in user_portion:
+        user_query, attached_files = user_portion.split(attachment_marker, 1)
+    else:
+        user_query = user_portion
+        attached_files = ""
+
+    return user_query.strip(), attached_files.strip(), context.strip()
+
+def build_llm_messages(
+    history: list[dict[str, str]],
+    system_prompt: str | None = None,
+) -> list[dict[str, str]]:
+    system_content = system_prompt or CHAT_SYSTEM_PROMPT
+    if not history:
+        return [{"role": "system", "content": system_content}]
+
+    messages = [{"role": "system", "content": system_content}]
+
+    for message in history[:-1]:
+        messages.append(
+            {
+                "role": message["role"],
+                "content": message["content"].strip(),
+            }
+        )
+
+    user_query, attached_files, context = parse_latest_message(history[-1]["content"])
+
+    final_sections = [f"User question:\n{user_query}"]
+    if attached_files:
+        final_sections.append(f"Attached files:\n{attached_files}")
+    if context:
+        final_sections.append(f"Relevant context:\n{context}")
+
+    messages.append(
+        {
+            "role": history[-1]["role"],
+            "content": "\n\n".join(final_sections),
+        }
+    )
+    return messages
 
 @log_async_timing("generate_ai_response")
 async def generate_ai_response(
@@ -76,7 +128,11 @@ async def generate_ai_response(
     if history:
         logger.info("Final prompt roles | roles={}", [message["role"] for message in history])
         logger.info("Final prompt last message | content={}", history[-1]["content"])
-    response = await get_llm_response_async(history, purpose="chat_response")
+    messages=build_llm_messages(history, system_prompt=CHAT_SYSTEM_PROMPT)
+    response = await llm.chat(
+        messages=messages,
+        purpose="chat_response",
+    )
     return (response or "").strip()
 
 
@@ -95,24 +151,24 @@ def build_ai_message_payload(
     )
 
 
-def merge_conversation_metadata(existing_metadata: dict | None, new_metadata: dict) -> dict:
-    metadata = dict(existing_metadata or {})
-    stm_data = metadata.get("stm")
+# def merge_conversation_metadata(existing_metadata: dict | None, new_metadata: dict) -> dict:
+#     metadata = dict(existing_metadata or {})
+#     stm_data = metadata.get("stm")
 
-    merged_topics = sorted(set((metadata.get("topics") or []) + (new_metadata.get("topics") or [])))
-    merged_entities = sorted(set((metadata.get("entities") or []) + (new_metadata.get("entities") or [])))
-    merged_goals = sorted(set((metadata.get("active_goals") or []) + (new_metadata.get("active_goals") or [])))
+#     merged_topics = sorted(set((metadata.get("topics") or []) + (new_metadata.get("topics") or [])))
+#     merged_entities = sorted(set((metadata.get("entities") or []) + (new_metadata.get("entities") or [])))
+#     merged_goals = sorted(set((metadata.get("active_goals") or []) + (new_metadata.get("active_goals") or [])))
 
-    metadata["topics"] = merged_topics
-    metadata["entities"] = merged_entities
-    metadata["active_goals"] = merged_goals
-    metadata["sentiment"] = new_metadata.get("sentiment", metadata.get("sentiment", "neutral"))
-    metadata["summary_hint"] = new_metadata.get("summary_hint", metadata.get("summary_hint", ""))
+#     metadata["topics"] = merged_topics
+#     metadata["entities"] = merged_entities
+#     metadata["active_goals"] = merged_goals
+#     metadata["sentiment"] = new_metadata.get("sentiment", metadata.get("sentiment", "neutral"))
+#     metadata["summary_hint"] = new_metadata.get("summary_hint", metadata.get("summary_hint", ""))
 
-    if stm_data is not None:
-        metadata["stm"] = stm_data
+#     if stm_data is not None:
+#         metadata["stm"] = stm_data
 
-    return metadata
+#     return metadata
 
 
 @log_async_timing("send_message")
@@ -120,7 +176,7 @@ async def send_message(
     db: AsyncSession,
     payload: MessageCreate,
     rag_context: str = "",
-):
+)-> dict[str, Message]:
     turn_started_at = perf_counter()
     payload.token_count = get_message_token_count(payload)
 
@@ -231,7 +287,7 @@ async def send_message_from_payload(
     conversation_id,
     payload: dict,
     authenticated_user_id,
-):
+)-> dict[str, Message]:
     request_started_at = perf_counter()
     generation_decision = detect_generation_intent(
         text=payload["content"],

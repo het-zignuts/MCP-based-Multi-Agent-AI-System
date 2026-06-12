@@ -2,8 +2,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.memory import get_memories_by_user
 from app.crud.user_profile_snapshot import get_user_profile_snapshot
-from app.services.memory.profile_renderer import RenderedUserProfile, render_profile_snapshot
-from app.services.memory.profile_resolver import resolve_profile_items
+from app.services.user_profile.profile_renderer import RenderedUserProfile, render_profile_snapshot
+from app.services.user_profile.profile_resolver import resolve_profile_items
 
 
 PROFILE_RELEVANT_TYPES = {"preference", "fact", "task", "decision"}

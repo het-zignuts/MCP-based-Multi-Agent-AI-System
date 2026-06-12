@@ -1,6 +1,6 @@
 from app.core.celery_app import celery_app
 from celery.utils.log import get_task_logger
-from app.services.file_processing_service import process_and_chunk
+from  app.services.file_processing.file_processing_service import process_and_chunk
 from app.services.embeddings.embedding_utils import embed_texts
 from app.db.models.chunks import Chunk
 from app.db.models.file import File

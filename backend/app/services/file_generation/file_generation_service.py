@@ -21,24 +21,19 @@ from app.services.file_generation.intent_router import (
     detect_generation_intent,
     normalize_format,
 )
-from app.services.file_generation.models import ArtifactDocument, ArtifactRenderedFile, GenerationFormat, GenerationOutcome
-from app.services.file_generation.prompt_builder import build_generation_prompt
-from app.services.file_generation.serializer import filename_timestamp, get_extension, get_mime_type, normalize_document, preview_text_for, render_document_bytes, slugify, validate_document
-from app.services.llm_service import get_llm_response_async
+from app.schemas import ArtifactDocument, ArtifactRenderedFile, GenerationFormat, GenerationOutcome, FileGenerationResponse
+# from app.services.file_generation.prompt_builder import build_generation_prompt
+from app.services.file_generation.file_renderer import filename_timestamp, get_extension, get_mime_type, normalize_document, preview_text_for, render_document_bytes, slugify, validate_document
+from app.services.llm import llm
 from app.services.memory.unified_memory_service import (
     UnifiedMemoryContext,
     build_unified_memory_context,
 )
 from app.services.rag.retriever import retrieve_pipeline
+from app.prompts import FILE_GENERATION_SYSTEM_PROMPT, FILE_GENERATION_USER_PROMPT
 
 
-GENERATED_UPLOAD_DIR = BACKEND_ROOT / "uploads" / "generated"
-
-GENERATION_SYSTEM_PROMPT = """
-You are a document generator. Produce valid JSON only, with no markdown fences, no extra text, and no explanation.
-Follow the requested schema exactly and output only the JSON object.
-"""
-
+GENERATED_UPLOAD_DIR = BACKEND_ROOT / "generated"
 
 def _ensure_output_dir() -> None:
     GENERATED_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -136,7 +131,7 @@ async def _generate_document(
     prompt: str,
     output_format: GenerationFormat,
     file_ids: list[UUID] | None = None,
-) -> tuple[ArtifactDocument, list[str], UnifiedMemoryContext]:
+) -> tuple[ArtifactDocument, str, list[str], UnifiedMemoryContext]:
     context_text, unified_context = await _build_context(
         db,
         user_id=user_id,
@@ -145,47 +140,57 @@ async def _generate_document(
         file_ids=file_ids,
     )
 
-    llm_prompt = build_generation_prompt(
-        user_request=prompt,
+    # llm_prompt = build_generation_prompt(
+    #     user_request=prompt,
+    #     output_format=output_format,
+    #     context_text=context_text,
+    # )
+    user_prompt = FILE_GENERATION_USER_PROMPT.format(
         output_format=output_format,
-        context_text=context_text,
+        user_request=prompt,
+        context=context_text,
     )
-    response = await get_llm_response_async(
-        [{"role": "user", "content": llm_prompt}],
-        purpose="file_generation",
-        system_prompt=GENERATION_SYSTEM_PROMPT,
-    )
-
-    extracted = _extract_json_payload(response)
+    
     try:
-        parsed = json.loads(extracted)
-    except json.JSONDecodeError as exc:
-        logger.warning(
-            "File generation invalid JSON | original=%s | extracted=%s",
-            response,
-            extracted,
+        response = await llm.structured(
+            [{"role": "system", "content": FILE_GENERATION_SYSTEM_PROMPT}, {"role": "user", "content": user_prompt}],
+            purpose="file_generation",
+            response_model=FileGenerationResponse,
         )
-        raise HTTPException(
-            status_code=502,
-            detail="The file generator returned invalid JSON.",
-        ) from exc
-    except json.JSONDecodeError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail="The file generator returned invalid JSON.",
-        ) from exc
-
-    try:
-        document = ArtifactDocument.model_validate(parsed)
+        ai_message=response.message or ""
+        document=response.document or {}
         document = normalize_document(document)
         warnings = validate_document(document, output_format)
+    except Exception as exc:
+        logger.error("Error occurred while generating document: %s", exc)
+        raise HTTPException(
+            status_code=502,
+            detail="The file generator returned invalid JSON.",
+        ) from exc
+    # extracted = _extract_json_payload(response)
+    # try:
+    #     parsed = json.loads(response)
+    # except json.JSONDecodeError as exc:
+    #     logger.warning(
+    #         "File generation invalid JSON | original=%s | extracted=%s",
+    #         response,
+    #         response,
+    #     )
+    #     raise HTTPException(
+    #         status_code=502,
+    #         detail="The file generator returned invalid JSON.",
+    #     ) from exc
+
+    # try:
+    #     document = ArtifactDocument.model_validate(parsed)
+        
     except Exception as exc:
         raise HTTPException(
             status_code=400,
             detail=str(exc),
         ) from exc
 
-    return document, warnings, unified_context
+    return document, ai_message, warnings, unified_context
 
 
 def _suggest_title(prompt: str, document: ArtifactDocument) -> str:
@@ -222,47 +227,47 @@ def _build_preview_payload(
     }
 
 
-async def preview_file_artifact(
-    db: AsyncSession,
-    *,
-    user_id,
-    conversation_id,
-    prompt: str,
-    output_format: str | None,
-    file_ids: list[UUID] | None = None,
-    explicit_action: str | None = None,
-) -> dict:
-    decision = detect_generation_intent(
-        text=prompt,
-        explicit_format=output_format,
-        explicit_action=explicit_action,
-    )
-    if not decision.should_generate:
-        decision = await classify_generation_intent_with_llm(
-            text=prompt,
-            current_decision=decision,
-        )
+# async def preview_file_artifact(
+#     db: AsyncSession,
+#     *,
+#     user_id,
+#     conversation_id,
+#     prompt: str,
+#     output_format: str | None,
+#     file_ids: list[UUID] | None = None,
+#     explicit_action: str | None = None,
+# ) -> dict:
+#     decision = detect_generation_intent(
+#         text=prompt,
+#         explicit_format=output_format,
+#         explicit_action=explicit_action,
+#     )
+#     if not decision.should_generate:
+#         decision = await classify_generation_intent_with_llm(
+#             text=prompt,
+#             current_decision=decision,
+#         )
 
-    normalized_format = normalize_format(decision.format) or "md"
-    document, warnings, _ = await _generate_document(
-        db,
-        user_id=user_id,
-        conversation_id=conversation_id,
-        prompt=prompt,
-        output_format=normalized_format,
-        file_ids=file_ids,
-    )
-    filename = _build_filename(prompt, document, normalized_format)
-    return {
-        "decision": decision,
-        "document": document.model_dump(),
-        "preview": _build_preview_payload(
-            document=document,
-            output_format=normalized_format,
-            filename=filename,
-            warnings=warnings,
-        ),
-    }
+#     normalized_format = normalize_format(decision.format) or "md"
+#     document, warnings, _ = await _generate_document(
+#         db,
+#         user_id=user_id,
+#         conversation_id=conversation_id,
+#         prompt=prompt,
+#         output_format=normalized_format,
+#         file_ids=file_ids,
+#     )
+#     filename = _build_filename(prompt, document, normalized_format)
+#     return {
+#         "decision": decision,
+#         "document": document.model_dump(),
+#         "preview": _build_preview_payload(
+#             document=document,
+#             output_format=normalized_format,
+#             filename=filename,
+#             warnings=warnings,
+#         ),
+#     }
 
 
 async def generate_file_artifact(
@@ -309,7 +314,7 @@ async def generate_file_artifact(
             ),
         )
 
-    document, warnings, _ = await _generate_document(
+    document,ai_message, warnings, _ = await _generate_document(
         db,
         user_id=user_id,
         conversation_id=conversation_id,
@@ -342,10 +347,7 @@ async def generate_file_artifact(
         generated_message = MessageCreate(
             user_id=user_id,
             conversation_id=conversation_id,
-            content=(
-                f"I generated {filename} and attached it to this conversation. "
-                f"Preview the file here: "
-            ),
+            content=ai_message + f"\n",
             role="assistant",
             token_count=None,
             file_ids=[file_record.id],

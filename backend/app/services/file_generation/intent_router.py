@@ -5,8 +5,9 @@ import re
 
 from loguru import logger
 
-from app.services.llm_service import get_llm_response_async
-from app.services.file_generation.models import GenerationDecision, GenerationFormat
+from app.services.llm import llm
+from app.schemas import GenerationDecision, GenerationFormat
+from app.prompts import INTENT_CLASSIFICATION_SYSTEM_PROMPT, INTENT_CLASSIFICATION_USER_PROMPT
 
 FORMAT_ALIASES: dict[str, GenerationFormat] = {
     "txt": "txt",
@@ -134,23 +135,23 @@ def detect_generation_intent(
     )
 
 
-def _extract_json_payload(text: str) -> str:
-    cleaned = (text or "").strip()
-    if not cleaned:
-        return ""
+# def _extract_json_payload(text: str) -> str:
+#     cleaned = (text or "").strip()
+#     if not cleaned:
+#         return ""
 
-    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"\s*```$", "", cleaned, flags=re.IGNORECASE).strip()
+#     cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+#     cleaned = re.sub(r"\s*```$", "", cleaned, flags=re.IGNORECASE).strip()
 
-    if cleaned.startswith("{") and cleaned.endswith("}"):
-        return cleaned
+#     if cleaned.startswith("{") and cleaned.endswith("}"):
+#         return cleaned
 
-    start = cleaned.find("{")
-    end = cleaned.rfind("}")
-    if start != -1 and end != -1 and end > start:
-        return cleaned[start : end + 1]
+#     start = cleaned.find("{")
+#     end = cleaned.rfind("}")
+#     if start != -1 and end != -1 and end > start:
+#         return cleaned[start : end + 1]
 
-    return cleaned
+#     return cleaned
 
 
 async def classify_generation_intent_with_llm(
@@ -158,57 +159,23 @@ async def classify_generation_intent_with_llm(
     text: str,
     current_decision: GenerationDecision,
 ) -> GenerationDecision:
-    prompt = f"""
-You are classifying whether the latest user message asks for a generated file artifact.
-
-Return ONLY valid JSON with this exact shape:
-{{
-  "should_generate": true,
-  "format": "md",
-  "confidence": 0.0,
-  "reason": ""
-}}
-
-Rules:
-- "should_generate" must be true only if the user is asking for a file/document/report artifact, not ordinary chat.
-- "format" must be one of: txt, md, json, csv, pdf, or null if unknown.
-- Keep the reason short.
-
-Latest user message:
-{text.strip()}
-
-Current heuristic decision:
-{json.dumps({
-    "should_generate": current_decision.should_generate,
-    "format": current_decision.format,
-    "confidence": current_decision.confidence,
-    "reason": current_decision.reason,
-}, ensure_ascii=True)}
-"""
+    user_prompt = INTENT_CLASSIFICATION_USER_PROMPT.format(user_message=text, heuristic_result=current_decision.model_dump())
 
     try:
-        response = await get_llm_response_async(
-            [{"role": "user", "content": prompt}],
+        messages=[{"role": "system", "content": INTENT_CLASSIFICATION_SYSTEM_PROMPT}, {"role": "user", "content": user_prompt}]
+        decision = await llm.structured(
+            messages,
             purpose="file_generation_intent",
+            response_model=GenerationDecision,
         )
-        extracted = _extract_json_payload(response)
-        parsed = json.loads(extracted)
+
     except Exception:
         logger.warning(
             "File generation intent parser failed, falling back to heuristic decision. raw_response=%s",
-            response,
+            decision,
         )
         return current_decision
 
-    candidate_format = normalize_format(parsed.get("format"))
-    confidence = float(parsed.get("confidence", current_decision.confidence) or 0.0)
-    reason = str(parsed.get("reason", current_decision.reason) or "").strip()
-    should_generate = bool(parsed.get("should_generate", current_decision.should_generate))
-
-    return GenerationDecision(
-        should_generate=should_generate,
-        format=candidate_format or current_decision.format or "md",
-        confidence=max(0.0, min(1.0, confidence)),
-        reason=reason or current_decision.reason,
-        source="llm",
+    return decision.model_copy(
+    update={"source": "llm"}
     )

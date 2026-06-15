@@ -2,7 +2,7 @@ import json
 import re
 from dataclasses import dataclass
 
-from app.db.models.message import Message
+from app.models.message import Message
 from app.services.llm import llm
 from pydantic import BaseModel, Field, ConfigDict
 from app.prompts import CONTEXT_ROUTER_USER_PROMPT, CONTEXT_ROUTER_SYSTEM_PROMPT

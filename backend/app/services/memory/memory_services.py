@@ -3,13 +3,13 @@ from dataclasses import dataclass
 from loguru import logger
 
 from app.services.tokenization.token_service import build_token_limited_history
-from app.db.models.message import Message
+from app.models.message import Message
 from app.services.summarization.summarization_service import (
     is_valid_summary,
     normalize_summary,
     summarize_messages,
 )
-from  app.services.time.timing import log_async_timing
+from app.services.time.timing import log_async_timing
 
 SUMMARY_TOKEN_BUDGET = 1000
 RAW_HISTORY_TOKEN_BUDGET = 2600

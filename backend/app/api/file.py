@@ -6,8 +6,8 @@ from uuid import UUID
 from app.schemas.file import FileCreate, FileRead
 from app.crud.file import (create_file, get_file, get_files, validate_and_save_file_to_storage)
 from app.db.database import get_db
-from  app.services.file_processing.file_task_dispatcher import queue_file_processing
-from app.db.models import Conversation
+from app.services.file_processing.file_task_dispatcher import queue_file_processing
+from app.models import Conversation
 
 router = APIRouter(prefix="/files", tags=["Files"])
 

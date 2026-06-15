@@ -5,7 +5,7 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from app.db.models import Conversation, Memory, User
+from app.models import Conversation, Memory, User
 from app.schemas.memory import MemoryCreate, MemoryUpdate
 
 

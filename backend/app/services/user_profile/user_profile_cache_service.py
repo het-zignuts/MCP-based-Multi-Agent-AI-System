@@ -9,8 +9,8 @@ from app.crud.user_profile_snapshot import (
     upsert_user_profile_snapshot,
 )
 from app.db.database import AsyncSessionLocal
-from app.db.models.message import Message
-from  app.services.conversation.history_service import fetch_conversation_history
+from app.models.message import Message
+from app.services.conversation.history_service import fetch_conversation_history
 from app.services.user_profile.profile_candidate_extractor import (
     extract_profile_candidates_from_messages,
 )

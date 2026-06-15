@@ -1,15 +1,15 @@
 import json
 import logging
 from time import perf_counter
-from  app.services.message.message_service import send_message_from_payload
+from app.services.message.message_service import send_message_from_payload
 from app.schemas.message import MessageRead
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from sqlmodel import select
 from uuid import UUID
 from app.db.database import get_db
-from app.db.models import Conversation
+from app.models import Conversation
 from app.core.websocket import manager
-from  app.services.time.timing import elapsed_minutes
+from app.services.time.timing import elapsed_minutes
 from sqlalchemy.ext.asyncio.session import AsyncSession
 from fastapi.encoders import jsonable_encoder
 

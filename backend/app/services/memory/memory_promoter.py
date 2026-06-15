@@ -4,7 +4,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Message
+from app.models import Message
 from app.services.memory.memory_extractor import extract_memories_from_text
 from app.services.memory.ltm_service import ComparisonBudget, create_memory_with_embedding
 

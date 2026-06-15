@@ -6,10 +6,10 @@ import numpy as np
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from app.db.models.chunks import Chunk
-from app.db.models.file import File
+from app.models.chunks import Chunk
+from app.models.file import File
 from app.services.embeddings.embedding_utils import embed_text_async
-from  app.services.time.timing import log_async_timing
+from app.services.time.timing import log_async_timing
 
 
 MMR_LAMBDA = 0.7

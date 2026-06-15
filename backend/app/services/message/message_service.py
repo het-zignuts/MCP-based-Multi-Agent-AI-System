@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 from time import perf_counter
 
-from app.db.models import Message
+from app.models import Message
 from app.schemas.message import MessageCreate
 from app.crud.message import create_message
 from app.crud.conversation import get_conversation, update_conversation_metadata
@@ -10,7 +10,7 @@ from app.services.llm import llm
 from app.services.rag.retriever import retrieve_pipeline
 from app.services.memory.unified_memory_service import build_unified_memory_context
 from app.services.memory.memory_services import set_stm_state
-from  app.services.time.timing import elapsed_minutes, log_async_timing
+from app.services.time.timing import elapsed_minutes, log_async_timing
 from app.services.tokenization.token_service import get_message_token_count
 from app.prompts import CHAT_SYSTEM_PROMPT
 from app.services.memory.background_memory_pipeline import (
@@ -24,6 +24,10 @@ from app.services.file_generation.intent_router import (
     detect_generation_intent,
 )
 from app.services.file_generation.file_generation_service import generate_file_artifact
+from app.agent_layer.agents.root_agent import RootAgent
+from app.agent_layer.schemas import AgentContext
+
+root_agent = RootAgent()
 
 EMPTY_RESPONSE_FALLBACK = (
     "I lost the thread for a moment. Please repeat the last line you want me to continue from, "
@@ -235,15 +239,30 @@ async def send_message(
         bool(unified_memory.combined_context),
     )
 
-    ai_response_started_at = perf_counter()
-    ai_content = await generate_ai_response(
-        unified_memory.messages,
-        rag_context=unified_memory.combined_context,
-    )
+    # ai_response_started_at = perf_counter()
+    # ai_content = await generate_ai_response(
+    #     unified_memory.messages,
+    #     rag_context=unified_memory.combined_context,
+    # )
+
+    agent_context = AgentContext(
+        user_id=str(payload.user_id),
+        conversation_id=str(payload.conversation_id),
+        user_message=payload.content,
+
+        stm_context=unified_memory.stm_summary if unified_memory.context_policy.needs_stm_summary else "",
+        ltm_context=unified_memory.ltm_context if unified_memory.context_policy.needs_long_term_memory else "",
+        profile_context=unified_memory.user_profile_text if unified_memory.context_policy.needs_user_profile else "",
+        rag_context=unified_memory.effective_rag_context if unified_memory.context_policy.needs_file_context else "",
+        conversation_metadata=conversation.convo_metadata if unified_memory.context_policy.needs_conversation_metadata else {},
+        )
+
+    agent_response = await root_agent.run(agent_context)
+    ai_content = agent_response.content
     logger.info(
-        "Chat timing | stage=generate_ai_response | duration_min={}",
-        elapsed_minutes(ai_response_started_at),
-    )
+            "Chat timing | stage=generate_ai_response | duration_min={}",
+            elapsed_minutes(ai_response_started_at),
+        )
     if not ai_content:
         ai_content = EMPTY_RESPONSE_FALLBACK
 

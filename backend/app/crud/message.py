@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from fastapi import HTTPException
 from sqlalchemy.orm import selectinload
-from app.db.models import User, Conversation, Message, File
+from app.models import User, Conversation, Message, File
 from uuid import UUID
 
 from app.schemas import MessageCreate

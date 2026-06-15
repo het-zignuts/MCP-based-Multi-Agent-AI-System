@@ -5,7 +5,7 @@ from fastapi import HTTPException
 from uuid import UUID
 from datetime import datetime
 
-from app.db.models import Conversation, User, Message
+from app.models import Conversation, User, Message
 from app.schemas.conversation import ConversationRead
 
 async def create_conversation(db: AsyncSession, payload: ConversationRead) -> Conversation:

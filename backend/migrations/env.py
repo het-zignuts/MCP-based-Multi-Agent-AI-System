@@ -3,7 +3,7 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 from sqlmodel import SQLModel
-from app.db.models import User, Conversation, Message, File, Chunk, Memory, UserProfileSnapshot
+from app.models import User, Conversation, Message, File, Chunk, Memory, UserProfileSnapshot
 from app.core.config import settings
 from sqlalchemy import create_engine
 

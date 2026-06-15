@@ -6,8 +6,8 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from uuid import uuid4, UUID
 
 if TYPE_CHECKING:
-    from app.db.models.conversation import Conversation  
-    from app.db.models.file import File
+    from app.models.conversation import Conversation  
+    from app.models.file import File
 
 class User(SQLModel, table=True):
     __tablename__ = "user"

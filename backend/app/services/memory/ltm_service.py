@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.crud.memory import create_memory, get_recent_memories_by_type, touch_memory
-from app.db.models import Memory
+from app.models import Memory
 from app.schemas.memory import MemoryCreate
 from app.services.embeddings.embedding_utils import embed_text_async
 from app.services.memory.memory_comparator import compare_memories

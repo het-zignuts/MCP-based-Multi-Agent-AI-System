@@ -8,12 +8,12 @@ from datetime import datetime
 import os
 import uuid
 
-from app.db.models.file import File
-from app.db.models.user import User
-from app.db.models.conversation import Conversation
-from app.db.models.message import Message
+from app.models.file import File
+from app.models.user import User
+from app.models.conversation import Conversation
+from app.models.message import Message
 from app.schemas.file import FileRead
-from  app.services.file_processing.file_type_config import ALLOWED_FILE_EXTENSIONS
+from app.services.file_processing.file_type_config import ALLOWED_FILE_EXTENSIONS
 
 
 def _write_file_content(file_path: str, content: bytes) -> None:

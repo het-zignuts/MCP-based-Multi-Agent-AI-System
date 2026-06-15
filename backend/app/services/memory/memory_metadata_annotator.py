@@ -3,7 +3,7 @@ from typing import Any
 
 from click import prompt
 
-from  app.services.llm import llm
+from app.services.llm import llm
 from app.schemas import MemoryProfileAnnotation
 from app.prompts import METADATA_ANNOTATION_SYSTEM_PROMPT, METADATA_ANNOTATION_USER_PROMPT
 

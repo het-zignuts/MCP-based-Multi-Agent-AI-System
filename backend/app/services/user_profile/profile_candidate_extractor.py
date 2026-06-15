@@ -1,7 +1,7 @@
 import json
 from typing import Any
 
-from app.db.models.message import Message
+from app.models.message import Message
 from app.schemas import ProfileCandidateResponse, ProfileCandidate
 from app.services.llm import llm
 from app.prompts import PROFILE_CANDIDATE_SYSTEM_PROMPT, PROFILE_CANDIDATE_USER_PROMPT

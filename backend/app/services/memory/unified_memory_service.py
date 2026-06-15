@@ -5,8 +5,8 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.conversation import get_conversation
-from app.db.models.message import Message
-from  app.services.conversation.history_service import fetch_conversation_history
+from app.models.message import Message
+from app.services.conversation.history_service import fetch_conversation_history
 from app.services.memory.context_router import (
     ContextPolicy,
     route_context_policy,
@@ -14,7 +14,7 @@ from app.services.memory.context_router import (
 from app.services.memory.ltm_service import search_memories_with_scores
 from app.services.user_profile.user_profile_cache_service import get_cached_user_profile_text
 from app.services.memory.memory_services import build_smart_history, get_stm_state
-from  app.services.time.timing import elapsed_minutes, log_async_timing
+from app.services.time.timing import elapsed_minutes, log_async_timing
 
 
 @dataclass
@@ -29,6 +29,7 @@ class UnifiedMemoryContext:
     user_profile_text: str
     ltm_context: str
     related_conversations_context: str
+    rag_context: str
     combined_context: str
 
 
@@ -336,5 +337,6 @@ async def build_unified_memory_context(
         user_profile_text=user_profile_text,
         ltm_context=ltm_context,
         related_conversations_context=related_conversations_context,
+        rag_context=effective_rag_context,
         combined_context=combined_context,
     )

@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.user_profile_snapshot import UserProfileSnapshot
+from app.models.user_profile_snapshot import UserProfileSnapshot
 
 
 async def get_user_profile_snapshot(

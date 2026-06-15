@@ -1,8 +1,8 @@
 from typing import Any
 
 import os
-from  app.services.file_processing.file_processors import *
-from  app.services.file_processing.file_type_config import (
+from app.services.file_processing.file_processors import *
+from app.services.file_processing.file_type_config import (
     CODE_FILE_EXTENSIONS,
     IMAGE_FILE_EXTENSIONS,
     TEXT_FILE_EXTENSIONS,

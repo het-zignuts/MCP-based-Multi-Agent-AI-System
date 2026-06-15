@@ -18,3 +18,9 @@ logs/
 .pytest_cache
 .pytest_cache/
 .pytest*
+
+.cph/
+.cph
+
+*.prob
+.prob

@@ -11,7 +11,7 @@ from app.api.file import router as file_router
 from app.api.file_generation import router as file_generation_router
 from app.api.chat import router as chat_router
 from app.api.ws import router as ws_router
-from  app.services.file_processing.file_task_dispatcher import shutdown_local_file_task_executor
+from app.services.file_processing.file_task_dispatcher import shutdown_local_file_task_executor
 from app.api.memory import router as memory_router
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -47,7 +47,7 @@ def custom_openapi():
     )
     normalize_binary_upload_schema(openapi_schema)
 
-    app.openapi_schema = openapi_schema
+   app.openapi_schema = openapi_schema
     return app.openapi_schema
 
 app.openapi = custom_openapi

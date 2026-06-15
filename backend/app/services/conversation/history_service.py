@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from app.db.models import Message
+from app.models import Message
 
 
 async def fetch_conversation_history(

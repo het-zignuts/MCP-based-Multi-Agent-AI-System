@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
-from app.db.models import Message
+from app.models import Message
 from app.services.memory.ltm_service import (
     create_memory_with_embedding,
     search_memories_with_scores,

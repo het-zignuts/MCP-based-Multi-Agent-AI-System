@@ -6,7 +6,7 @@ from sqlmodel import select
 
 from app.crud.memory import touch_memory
 from app.db.database import AsyncSessionLocal
-from app.db.models import Memory
+from app.models import Memory
 from app.services.memory.memory_metadata_annotator import (
     annotate_memory_profile_metadata,
 )

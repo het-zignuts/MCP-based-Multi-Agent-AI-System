@@ -13,8 +13,8 @@ from docx import Document
 import pytesseract
 from fastapi import HTTPException
 from PIL import Image
-from  app.services.file_processing.file_chunkers import *
-from  app.services.file_processing.file_chunkers import chunk_sections
+from app.services.file_processing.file_chunkers import *
+from app.services.file_processing.file_chunkers import chunk_sections
 
 MAX_OFFICE_UNCOMPRESSED_BYTES = 50 * 1024 * 1024
 

@@ -4,7 +4,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi import HTTPException
 from uuid import UUID
 
-from app.db.models import User
+from app.models import User
 
 async def create_user(db: AsyncSession, payload) -> User:
     result = await db.execute(select(User).where(User.email == payload.email))

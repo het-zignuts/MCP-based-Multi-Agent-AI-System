@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import BACKEND_ROOT
 from app.crud.file import create_file
 from app.crud.message import create_message
-from app.db.models.message import Message
+from app.models.message import Message
 from app.schemas.file import FileCreate
 from app.schemas.message import MessageCreate
 from app.services.file_generation.intent_router import (

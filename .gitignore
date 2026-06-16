@@ -27,3 +27,6 @@ logs/
 
 *.md
 !README.md
+
+backend/test*.py
+backend/inspect*.py

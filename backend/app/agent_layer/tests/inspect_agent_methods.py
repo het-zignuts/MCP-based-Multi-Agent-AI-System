@@ -6,7 +6,7 @@ from google.adk.agents import Agent
 
 agent = Agent(
     name="assistant",
-    model="gemini-2.0-flash",
+    model="gemini-3.1-flash-lite",
     instruction="You are helpful."
 )
 

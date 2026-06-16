@@ -1,4 +1,7 @@
 import asyncio
+from dotenv import load_dotenv
+
+load_dotenv(".env")
 
 from app.agent_layer.schemas import AgentContext
 from app.agent_layer.agents import RootAgent

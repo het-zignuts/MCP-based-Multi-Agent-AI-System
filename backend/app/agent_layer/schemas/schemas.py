@@ -1,7 +1,4 @@
 from pydantic import BaseModel, Field
-
-
-from pydantic import BaseModel
 from typing import Optional, Dict
 
 
@@ -21,14 +18,20 @@ class AgentContext(BaseModel):
     # METADATA
     conversation_metadata: Dict = {}
 
-    selected_agent: Optional[str] = Field(default=None, description="The agent selected to handle this message. Can be set by the selector tool or manually.")
+    # The agent to route to. If set by the frontend (@mention), it bypasses LLM routing.
+    # If None, the LLM selector picks the best agent.
+    selected_agent: Optional[str] = Field(
+        default=None,
+        description="Explicitly selected agent from the frontend @mention. Overrides LLM routing when set."
+    )
 
 
 class AgentResponse(BaseModel):
-    content: str
+    selected_agent: Optional[str] = None   # Echo back the agent chosen for this turn
     agent_name: str
+    content: Optional[str] = None  # LLM output content
+
 
 class AgentState(BaseModel):
     active_agent: str = "general"
     last_agent: str | None = None
-    mentioned_agent: str | None = None

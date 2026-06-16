@@ -1,11 +1,14 @@
 from functools import lru_cache
 from pathlib import Path
+import os
 
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 ENV_FILE = BACKEND_ROOT / ".env"
+load_dotenv(str(ENV_FILE))
 
 class Settings(BaseSettings):
     APP_NAME:str="AI System"
@@ -15,6 +18,8 @@ class Settings(BaseSettings):
     MODEL: str | None = None
     CHAT_MODEL: str | None = None
     MAINTENANCE_MODEL: str | None = None
+    AGENT_MODEL: str = "gemini-3.1-flash-lite"  # Model used by ADK agents (2.0-flash: 1500 RPD free)
+    AGENT_FALLBACK_MODEL: str | None = "groq/llama-3.3-70b-versatile"  # Fallback when primary is quota-exhausted
     GROQ_API_KEY: str | None = None
     GEMINI_API_KEY: str | None = None
     LLM_TEMPERATURE: float = 0.1

@@ -3,6 +3,7 @@ import ChatWindow from "../components/ChatWindow";
 import Sidebar from "../components/SideBar";
 import {
   createConversation,
+  fetchAgents,
   fetchConversations,
   fetchConversationFiles,
   fetchMessages,
@@ -12,7 +13,7 @@ import { useConversationUploads } from "../hooks/useConversationUploads";
 
 const ACTIVE_USER_ID = import.meta.env.VITE_USER_ID ?? "";
 
-export default function ChatPage() {
+export default function ChatPage({ selectedAgent, setSelectedAgent, activeAgent, setActiveAgent }) {
   const [conversations, setConversations] = useState([]);
   const [selectedConversationId, setSelectedConversationId] = useState("");
   const [messagesByConversation, setMessagesByConversation] = useState({});
@@ -23,6 +24,8 @@ export default function ChatPage() {
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
   const [statusMessage, setStatusMessage] = useState("Loading conversations...");
   const [draftFilesByConversation, setDraftFilesByConversation] = useState({});
+  // Agents fetched from /ws/agents on mount
+  const [agents, setAgents] = useState([]);
 
   const selectedConversation = useMemo(
     () =>
@@ -52,12 +55,37 @@ export default function ChatPage() {
     });
   };
 
-  const { connectionState, isSending, sendMessage } = useConversationSocket({
+  const { activeAgent: socketActiveAgent, agentSwitched, connectionState, isSending, sendMessage } = useConversationSocket({
     activeUserId: ACTIVE_USER_ID,
+    selectedAgent,
     selectedConversationId,
+    selectedConversation,
     setMessagesByConversation,
     setStatusMessage,
   });
+
+  useEffect(() => {
+    if (setActiveAgent && socketActiveAgent) {
+      setActiveAgent(socketActiveAgent);
+    }
+  }, [socketActiveAgent, setActiveAgent]);
+
+  // Fetch agents list from the backend on mount
+  useEffect(() => {
+    fetchAgents()
+      .then(setAgents)
+      .catch(() => {
+        // Fall back to a hardcoded list if the endpoint isn't reachable yet
+        setAgents([
+          { name: "general",  label: "General Assistant", description: "Default conversational agent" },
+          { name: "code",     label: "Code Agent",         description: "Code analysis and generation" },
+          { name: "data",     label: "Data Agent",         description: "CSV / Excel analysis" },
+          { name: "research", label: "Research Agent",     description: "Web search and synthesis" },
+          { name: "document", label: "Document Agent",     description: "PDF / DOCX analysis" },
+          { name: "image",    label: "Image Agent",        description: "Image understanding and generation" },
+        ]);
+      });
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -364,6 +392,11 @@ export default function ChatPage() {
     return true;
   };
 
+  const handleAgentSelect = (agentName) => {
+    // agentName is null when user clears selection (auto-route resumes)
+    setSelectedAgent(agentName || null);
+  };
+
 
   const attachedFiles = useMemo(() => {
     if (!selectedConversationId) {
@@ -436,6 +469,9 @@ export default function ChatPage() {
         <div className="status-banner">{statusMessage}</div>
 
         <ChatWindow
+          activeAgent={activeAgent}
+          agents={agents}
+          agentSwitched={agentSwitched}
           attachedFiles={attachedFiles}
           conversation={selectedConversation}
           isLoading={isLoadingMessages}
@@ -446,6 +482,8 @@ export default function ChatPage() {
           onClearAttachedFiles={handleClearAttachedFiles}
           onRemoveAttachedFile={handleRemoveAttachedFile}
           onSend={handleSendMessage}
+          onAgentSelect={handleAgentSelect}
+          selectedAgent={selectedAgent}
           sendDisabledReason={sendDisabledReason}
         />
       </main>

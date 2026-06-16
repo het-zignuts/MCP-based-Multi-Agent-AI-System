@@ -11,7 +11,7 @@ class GeneralAgent(BaseAgent):
     def _build_adk_agent(self) -> LlmAgent:
         return LlmAgent(
             name="general",
-            model="groq/llama-3.1-70b",  # or your configured model
+            model="gemini-3.1-flash-lite",
             instruction="""
 You are a General Assistant.
 
@@ -26,22 +26,4 @@ You MUST use provided context if present.
         )
 
     def build_prompt(self, context: AgentContext) -> str:
-        return f"""
-USER MESSAGE:
-{context.user_message}
-
---- MEMORY (STM) ---
-{context.stm_context}
-
---- LONG TERM MEMORY (LTM) ---
-{context.ltm_context}
-
---- PROFILE ---
-{context.profile_context}
-
---- RAG CONTEXT ---
-{context.rag_context}
-
---- METADATA ---
-{context.conversation_metadata}
-"""
+        return context.user_message

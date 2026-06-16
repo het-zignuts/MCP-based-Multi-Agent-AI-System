@@ -244,7 +244,7 @@ async def _check_conflict_candidates(
             new_content=content,
             memory_type=memory_type,
         )
-
+        comparison=comparison.model_dump()
         relationship = comparison.get("relationship")
         confidence = float(comparison.get("confidence", 0.5) or 0.5)
 

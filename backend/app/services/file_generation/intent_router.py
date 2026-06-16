@@ -4,10 +4,26 @@ import json
 import re
 
 from loguru import logger
+from pydantic import BaseModel, Field
 
 from app.services.llm import llm
 from app.schemas import GenerationDecision, GenerationFormat
 from app.prompts import INTENT_CLASSIFICATION_SYSTEM_PROMPT, INTENT_CLASSIFICATION_USER_PROMPT
+
+
+class _LLMGenerationDecision(BaseModel):
+    """Minimal schema used only to parse the LLM's raw JSON response.
+
+    Intentionally excludes `source` (an internal field the LLM knows nothing
+    about) and clamps `confidence` to [0, 1] so out-of-range values from the
+    LLM don't cause a Pydantic validation error.
+    """
+    should_generate: bool
+    format: GenerationFormat | None = None
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    reason: str = ""
+
+    model_config = {"extra": "ignore"}  # silently drop any unexpected keys
 
 FORMAT_ALIASES: dict[str, GenerationFormat] = {
     "txt": "txt",
@@ -162,20 +178,33 @@ async def classify_generation_intent_with_llm(
     user_prompt = INTENT_CLASSIFICATION_USER_PROMPT.format(user_message=text, heuristic_result=current_decision.model_dump())
 
     try:
-        messages=[{"role": "system", "content": INTENT_CLASSIFICATION_SYSTEM_PROMPT}, {"role": "user", "content": user_prompt}]
-        decision = await llm.structured(
+        messages = [
+            {"role": "system", "content": INTENT_CLASSIFICATION_SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ]
+        # Parse against the LLM-only schema first to avoid validation errors
+        # caused by missing/unexpected fields (e.g. `source`, bad `confidence`).
+        raw = await llm.structured(
             messages,
             purpose="file_generation_intent",
-            response_model=GenerationDecision,
+            response_model=_LLMGenerationDecision,
         )
-
+        decision = GenerationDecision(
+            should_generate=raw.should_generate,
+            format=raw.format,
+            confidence=raw.confidence,
+            reason=raw.reason,
+            source="llm",
+        )
+        logger.info(
+            "File generation intent LLM decision | should_generate={} | format={} | confidence={} | reason={}",
+            decision.should_generate,
+            decision.format,
+            decision.confidence,
+            decision.reason,
+        )
     except Exception:
-        logger.warning(
-            "File generation intent parser failed, falling back to heuristic decision. raw_response=%s",
-            decision,
-        )
+        logger.exception("File generation intent parser failed, falling back to heuristic decision.")
         return current_decision
 
-    return decision.model_copy(
-    update={"source": "llm"}
-    )
+    return decision

@@ -2,7 +2,7 @@ from google.adk.agents import Agent
 
 root_agent = Agent(
     name="assistant",
-    model="gemini-2.0-flash",
+    model="gemini-3.1-flash-lite",
     description="Simple assistant",
     instruction="You are a helpful assistant."
 )

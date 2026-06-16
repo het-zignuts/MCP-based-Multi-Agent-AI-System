@@ -62,6 +62,11 @@ export async function uploadConversationFiles({
   return response.data;
 }
 
+export async function fetchAgents() {
+  const response = await api.get("/ws/agents");
+  return response.data.agents;
+}
+
 export function getGeneratedFileRawUrl(fileId) {
   return `${API_BASE_URL}/files/generated/${fileId}/raw`;
 }

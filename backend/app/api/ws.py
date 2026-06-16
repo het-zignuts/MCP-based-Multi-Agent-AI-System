@@ -15,10 +15,26 @@ from fastapi.encoders import jsonable_encoder
 
 logger = logging.getLogger(__name__)
 
+VALID_AGENTS = [
+    {"name": "general",  "label": "General Assistant", "description": "Default conversational agent"},
+    {"name": "code",     "label": "Code Agent",         "description": "Code analysis and generation"},
+    {"name": "data",     "label": "Data Agent",         "description": "CSV / Excel analysis"},
+    {"name": "research", "label": "Research Agent",     "description": "Web search and synthesis"},
+    {"name": "document", "label": "Document Agent",     "description": "PDF / DOCX analysis"},
+    {"name": "image",    "label": "Image Agent",        "description": "Image understanding and generation"},
+]
+
 router = APIRouter(
     prefix="/ws",
     tags=["WebSockets"],
 )
+
+
+@router.get("/agents")
+async def list_agents():
+    """Return the list of available agents so the frontend can mirror VALID_AGENTS."""
+    return {"agents": VALID_AGENTS}
+
 
 @router.websocket("/{conversation_id}")
 async def websocket_endpoint(websocket: WebSocket, conversation_id: UUID, db: AsyncSession = Depends(get_db)):
@@ -82,6 +98,8 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: UUID, db: As
                             "ai_message": MessageRead.model_validate(
                                 result["ai_message"]
                             ).model_dump(),
+                            "active_agent": result.get("active_agent", "general"),
+                            "agent_switched": result.get("agent_switched", False),
                         }
                     }),
                     conversation_id
@@ -105,3 +123,4 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: UUID, db: As
 
     except WebSocketDisconnect:
         manager.disconnect(conversation_id, websocket)
+

@@ -26,6 +26,7 @@ from app.services.file_generation.intent_router import (
 from app.services.file_generation.file_generation_service import generate_file_artifact
 from app.agent_layer.agents.root_agent import RootAgent
 from app.agent_layer.schemas import AgentContext
+from app.agent_layer.core.state import get_agent_state, set_active_agent
 
 root_agent = RootAgent()
 
@@ -180,7 +181,8 @@ async def send_message(
     db: AsyncSession,
     payload: MessageCreate,
     rag_context: str = "",
-)-> dict[str, Message]:
+    selected_agent: str | None = None,
+) -> dict[str, Message]:
     turn_started_at = perf_counter()
     payload.token_count = get_message_token_count(payload)
 
@@ -239,26 +241,42 @@ async def send_message(
         bool(unified_memory.combined_context),
     )
 
-    # ai_response_started_at = perf_counter()
-    # ai_content = await generate_ai_response(
-    #     unified_memory.messages,
-    #     rag_context=unified_memory.combined_context,
-    # )
+    agent_state = get_agent_state(conversation.convo_metadata)
+    previous_active_agent = agent_state.get("active_agent", "general")
+
+    # `selected_agent` (from the frontend) is only set when the user explicitly
+    # @mentioned an agent.  In that case we pass it through so root_agent bypasses
+    # LLM routing.  When it is None we pass None so the LLM router runs freely.
+    # We NEVER fall back to `previous_active_agent` here — that would permanently
+    # short-circuit the LLM router because the fallback is always a valid agent name.
+    explicit_agent = selected_agent if selected_agent else None
+
+    logger.info(
+        "Agent routing | explicit_agent=%s | previous_active_agent=%s | mode=%s",
+        explicit_agent,
+        previous_active_agent,
+        "explicit" if explicit_agent else "llm_routing",
+    )
 
     agent_context = AgentContext(
         user_id=str(payload.user_id),
         conversation_id=str(payload.conversation_id),
         user_message=payload.content,
-
+        selected_agent=explicit_agent,          # None → LLM router picks; string → forced
         stm_context=unified_memory.stm_summary if unified_memory.context_policy.needs_stm_summary else "",
         ltm_context=unified_memory.ltm_context if unified_memory.context_policy.needs_long_term_memory else "",
         profile_context=unified_memory.user_profile_text if unified_memory.context_policy.needs_user_profile else "",
-        rag_context=unified_memory.effective_rag_context if unified_memory.context_policy.needs_file_context else "",
+        rag_context=unified_memory.rag_context if unified_memory.context_policy.needs_file_context else "",
         conversation_metadata=conversation.convo_metadata if unified_memory.context_policy.needs_conversation_metadata else {},
-        )
+    )
 
+    ai_response_started_at = perf_counter()
     agent_response = await root_agent.run(agent_context)
     ai_content = agent_response.content
+    
+    updated_metadata = set_active_agent(conversation.convo_metadata, agent_response.agent_name)
+    await update_conversation_metadata(db, payload.conversation_id, updated_metadata)
+    
     logger.info(
             "Chat timing | stage=generate_ai_response | duration_min={}",
             elapsed_minutes(ai_response_started_at),
@@ -294,9 +312,13 @@ async def send_message(
         "Chat timing | stage=total_turn | duration_min={}",
         elapsed_minutes(turn_started_at),
     )
+    agent_switched = agent_response.agent_name != previous_active_agent
+
     return {
         "user_message": user_message,
         "ai_message": ai_message,
+        "active_agent": agent_response.agent_name,
+        "agent_switched": agent_switched,
     }
     
 
@@ -319,7 +341,7 @@ async def send_message_from_payload(
             text=payload["content"],
             current_decision=generation_decision,
         )
-        logger.info("Using LLM for intent detection | should_generate=%s | reason=%s", generation_decision.should_generate, generation_decision.reason)
+        logger.info("Using LLM for intent detection | should_generate={} | reason={}", generation_decision.should_generate, generation_decision.reason)
 
     if generation_decision.should_generate:
         generated = await generate_file_artifact(
@@ -340,6 +362,8 @@ async def send_message_from_payload(
         return {
             "user_message": generated.user_message,
             "ai_message": generated.assistant_message,
+            "active_agent": "system",
+            "agent_switched": False,
         }
 
     message_payload = MessageCreate(
@@ -372,6 +396,7 @@ async def send_message_from_payload(
         db,
         message_payload,
         rag_context=rag_context,
+        selected_agent=payload.get("selected_agent"),
     )
     logger.info(
         "Chat timing | stage=send_message_from_payload_total | duration_min={}",

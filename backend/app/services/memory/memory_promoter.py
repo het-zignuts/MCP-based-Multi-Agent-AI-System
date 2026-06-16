@@ -199,13 +199,20 @@ async def promote_memories_from_messages(
     created_memories: list[dict[str, Any]] = []
 
     for item in extracted_memories:
-        content = item.get("content", "").strip()
-        memory_type = item.get("memory_type", "").strip()
-        importance_score = float(item.get("importance_score", 0.5))
-        confidence_score = float(item.get("confidence_score", 0.5))
-        evidence = str(item.get("evidence", "inferred")).strip().lower()
-        temporal_scope = str(item.get("temporal_scope", "temporary")).strip().lower()
-        memory_metadata = item.get("memory_metadata", {}) or {}
+        if isinstance(item, dict):
+            item_dict = item
+        elif hasattr(item, "model_dump"):
+            item_dict = item.model_dump()
+        else:
+            item_dict = dict(item)
+
+        content = item_dict.get("content", "").strip()
+        memory_type = str(item_dict.get("memory_type", "")).strip()
+        importance_score = float(item_dict.get("importance_score", 0.5))
+        confidence_score = float(item_dict.get("confidence_score", 0.5))
+        evidence = str(item_dict.get("evidence", "inferred")).strip().lower()
+        temporal_scope = str(item_dict.get("temporal_scope", "temporary")).strip().lower()
+        memory_metadata = item_dict.get("memory_metadata", {}) or {}
 
         if not content or not memory_type:
             continue

@@ -131,14 +131,23 @@ def process_docx(file_path: str) -> list[str]:
     doc = Document(file_path)
     structured_text = []
     for para in doc.paragraphs:
-        style = para.style.name
-        if style.startswith("Heading"):
-            level = style.replace("Heading ", "")
-            structured_text.append(f"\n{'#' * int(level)} {para.text}\n")
+        style_name = None
+        try:
+            style_name = getattr(para.style, "name", None)
+        except Exception:
+            style_name = None
+
+        if style_name and style_name.startswith("Heading"):
+            level_str = style_name.replace("Heading ", "")
+            try:
+                level = int(level_str)
+                structured_text.append(f"\n{'#' * level} {para.text}\n")
+            except ValueError:
+                structured_text.append(f"\n# {para.text}\n")
         else:
             structured_text.append(para.text)
-    content_str= "\n".join(structured_text)
-    chunks=chunk_markdown_and_docx(content_str)
+    content_str = "\n".join(structured_text)
+    chunks = chunk_markdown_and_docx(content_str)
     return chunks
 
 def process_text(file_path: str) -> list[str]:

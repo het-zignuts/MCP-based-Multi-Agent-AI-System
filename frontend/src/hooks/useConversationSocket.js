@@ -36,13 +36,35 @@ function mergeIncomingMessages(currentMessages, userMessage, aiMessage) {
 
 export function useConversationSocket({
   activeUserId,
+  selectedAgent,
   selectedConversationId,
+  selectedConversation,
   setMessagesByConversation,
   setStatusMessage,
 }) {
   const socketRef = useRef(null);
   const [sendingConversationId, setSendingConversationId] = useState("");
   const [connectionState, setConnectionState] = useState("idle");
+  const [activeAgent, setActiveAgent] = useState("general");
+  const [agentSwitched, setAgentSwitched] = useState(false);
+  const lastInitializedIdRef = useRef(null);
+
+  // Sync initial active agent state when conversation changes or loads
+  useEffect(() => {
+    if (selectedConversationId && selectedConversation) {
+      if (lastInitializedIdRef.current !== selectedConversationId) {
+        const metadata = selectedConversation.convo_metadata;
+        const savedAgent = metadata?.agent_state?.active_agent || "general";
+        setActiveAgent(savedAgent);
+        setAgentSwitched(false);
+        lastInitializedIdRef.current = selectedConversationId;
+      }
+    } else if (!selectedConversationId) {
+      setActiveAgent("general");
+      setAgentSwitched(false);
+      lastInitializedIdRef.current = null;
+    }
+  }, [selectedConversationId, selectedConversation]);
 
   const isSending =
     !!selectedConversationId && sendingConversationId === selectedConversationId;
@@ -109,6 +131,12 @@ export function useConversationSocket({
 
       if (payload.type !== "chat") {
         return;
+      }
+
+      // Update active agent state from every WS message
+      if (payload.data.active_agent) {
+        setAgentSwitched(payload.data.agent_switched === true);
+        setActiveAgent(payload.data.active_agent);
       }
 
       updateConversationMessages(conversationId, (currentMessages) =>
@@ -190,11 +218,15 @@ export function useConversationSocket({
         content,
         file_ids: attachedFileIds,
         user_id: activeUserId,
+        // Pass the explicitly selected agent so the backend bypasses LLM routing
+        selected_agent: selectedAgent || null,
       })
     );
   };
 
   return {
+    activeAgent,
+    agentSwitched,
     connectionState,
     isSending,
     sendMessage,

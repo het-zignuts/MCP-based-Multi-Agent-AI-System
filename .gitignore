@@ -24,3 +24,6 @@ logs/
 
 *.prob
 .prob
+
+*.md
+!README.md

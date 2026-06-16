@@ -47,7 +47,7 @@ def custom_openapi():
     )
     normalize_binary_upload_schema(openapi_schema)
 
-   app.openapi_schema = openapi_schema
+    app.openapi_schema = openapi_schema
     return app.openapi_schema
 
 app.openapi = custom_openapi

@@ -160,6 +160,9 @@ def get_llm_response(
         client = get_gemini_client()
     else:
         client = get_groq_client()
+        # Native Groq SDK does not accept LiteLLM-style "groq/" prefix
+        if model_name.startswith("groq/"):
+            model_name = model_name[len("groq/"):]
 
     params = {
         "model": model_name,
@@ -171,9 +174,11 @@ def get_llm_response(
     if settings.LLM_TEMPERATURE is not None:
         params["temperature"] = settings.LLM_TEMPERATURE
 
-    if model_name.startswith("gemini") or model_name.startswith("qwen/qwen3"):
-        params["reasoning_format"] = "hidden"
-        params["reasoning_effort"] = "none"
+    if model_name.startswith("qwen/qwen3"):
+        params["extra_body"] = {
+            "reasoning_format": "hidden",
+            "reasoning_effort": "none",
+        }
 
     response = client.chat.completions.create(**params)
     content = response.choices[0].message.content

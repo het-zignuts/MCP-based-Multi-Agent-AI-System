@@ -1,0 +1,30 @@
+.agent-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  backdrop-filter: blur(4px);
+}
+
+.agent-switcher .label {
+  font-weight: 600;
+  color: #ddd;
+  font-family: 'Inter', sans-serif;
+}
+
+.agent-switcher .badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Example dynamic badge colors */
+.badge-general { background: #4a90e2; color: #fff; }
+.badge-code { background: #e67e22; color: #fff; }
+.badge-data { background: #27ae60; color: #fff; }
+.badge-research { background: #9b59b6; color: #fff; }
+.badge-document { background: #e74c3c; color: #fff; }
+.badge-image { background: #f1c40f; color: #fff; }
